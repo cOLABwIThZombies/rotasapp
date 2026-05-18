@@ -147,7 +147,7 @@ button,select,input,textarea{font-family:inherit}
 .sw svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--tx3);pointer-events:none}
 .si{padding:5px 9px 5px 28px;border:1px solid var(--brd);border-radius:6px;font-size:12px;outline:none;width:160px;background:var(--surf);color:var(--tx);transition:all .15s}
 .si:focus{border-color:var(--brd2);width:200px}
-.date-banner{display:none;background:var(--warn-bg);border-bottom:1px solid #f5d98a;padding:7px 16px;font-size:12.5px;color:var(--warn-tx);align-items:center;gap:8px;flex-shrink:0}
+.date-banner{display:none;background:var(--warn-bg);border-bottom:1px solid #f5d98a;padding:4px 16px;font-size:11px;color:var(--warn-tx);align-items:center;gap:6px;flex-shrink:0;min-height:0}
 .date-banner.on{display:flex}
 /* ── STATS ── */
 .sbar{display:flex;gap:7px;padding:11px 16px 0;flex-shrink:0;flex-wrap:wrap}
@@ -403,9 +403,9 @@ button,select,input,textarea{font-family:inherit}
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
       <div class="date-banner" id="date-banner">
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1.5l5.5 10H1.5L7 1.5z"/><path d="M7 5.5v3M7 10v.5"/></svg>
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1.5l5.5 10H1.5L7 1.5z"/><path d="M7 5.5v3M7 10v.5"/></svg>
         <span id="banner-msg"></span><div style="flex:1"></div>
-        <button class="btn-ghost" style="font-size:11.5px;padding:4px 10px" onclick="goToday()">Ir para hoje</button>
+        <button class="btn-ghost" style="font-size:10.5px;padding:2px 8px" onclick="goToday()">Hoje</button>
       </div>
       <div class="sbar" id="stats-bar"></div>
       <div class="board" id="board"></div>
