@@ -536,6 +536,7 @@ button,select,input,textarea{font-family:inherit}
       </div>
       <div class="dfield"><span class="dlbl">Telefone</span><input class="dinp" id="de-tel"></div>
       <div class="dfield"><span class="dlbl">Nome / Endereço completo</span><textarea class="dta" id="de-endereco" style="min-height:52px"></textarea></div>
+      <div class="dfield"><span class="dlbl">Complemento</span><input class="dinp" id="de-complemento" placeholder="Apto, Bloco, Torre..."></div>
       <div class="dfield"><span class="dlbl">Observação geral</span><textarea class="dta" id="de-obs"></textarea></div>
     </div>
     <div class="dpanel" id="dp-posrota">
@@ -575,7 +576,8 @@ button,select,input,textarea{font-family:inherit}
       <div><label class="lbl">Técnico</label><select class="inp nm" id="m-tec"></select></div>
       <div><label class="lbl">Prioridade</label><select class="inp nm" id="m-prio"><option value="lp">LP</option><option value="ow">OW</option></select></div>
       <div><label class="lbl">Telefone</label><input class="inp nm" id="m-tel"></div>
-      <div><label class="lbl">Nome / Endereço</label><input class="inp nm" id="m-endereco"></div>
+      <div><label class="lbl">Nome / Endereço</label><input class="inp nm" id="m-endereco" placeholder="Ex: João Silva — Rua das Flores, 123"></div>
+      <div><label class="lbl">Complemento</label><input class="inp nm" id="m-complemento" placeholder="Apto 42, Bloco B..."></div>
       <div class="mfull"><label class="lbl">Observações</label><textarea class="inp nm" id="m-obs" style="resize:vertical;min-height:48px"></textarea></div>
     </div>
     <div class="mfoot"><button class="btn-ghost" onclick="closeModal('modal-os')">Cancelar</button><button class="btn-save" onclick="saveOS()">Salvar OS</button></div>
@@ -673,6 +675,16 @@ const nowTime  = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',min
 function getTodayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const TODAY_STR = getTodayStr();
 const ordensForDate = d => S.ordens[d] || [];
+
+// Monta endereço completo: nome/endereço + complemento + bairro + CEP
+const fmtEndereco = o => {
+  const parts = [];
+  if(o.endereco)    parts.push(o.endereco);
+  if(o.complemento) parts.push(o.complemento);
+  if(o.bairro)      parts.push(o.bairro);
+  if(o.cep)         parts.push('CEP: '+o.cep);
+  return parts.join(' — ') || '—';
+};
 
 /* ═══════════════════════════════════════════════════════════
    LOGIN / AUTH
@@ -814,6 +826,8 @@ function subscribeOrdens(data){
     snap=>{
       S.ordens[data]=snap.docs.map(d=>({id:d.id,data,...d.data()}));
       renderBoard();
+      // Atualiza contador "OS hoje" na tabela de técnicos sempre que as ordens do dia mudam
+      if(data===TODAY_STR) renderTecnicos();
       if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
       if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
     },
@@ -995,7 +1009,7 @@ function makeCard(o){
     <div class="osc-defeito">${o.defeito||'—'}</div>
     ${o.valor?`<div class="osc-val">${fmtBRL(o.valor)}</div>`:''}
     <div class="osc-foot">
-      <div class="osc-bairro"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.bairro||'—'}</div>
+      <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.endereco||o.bairro||'—'}</div>
       <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':'otag-t'}">${o.periodo==='manha'?'Mnh':'Trd'}</span></div>
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
@@ -1028,7 +1042,7 @@ function openDrawer(id){
   const t=S.tecnicos.find(x=>x.id===o.techId);
   const ts=getTipo(o.tipo);
   document.getElementById('drw-num').textContent='#'+o.os;
-  document.getElementById('drw-sub').textContent=(o.modelo||'—')+' · '+(o.bairro||'—')+' · '+fmtShort(o.data);
+  document.getElementById('drw-sub').textContent=(o.modelo||'—')+' · '+fmtEndereco(o)+' · '+fmtShort(o.data);
   document.getElementById('drw-grid').innerHTML=[
     {k:'Tipo',v:`<span style="background:${ts.bg};color:${ts.color};font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px">${o.tipo||'—'}</span>`},
     {k:'Prioridade',v:`<span class="pill ${o.prio==='lp'?'pill-err':'pill-info'}">${(o.prio||'—').toUpperCase()}</span>`},
@@ -1040,7 +1054,7 @@ function openDrawer(id){
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
   set('de-modelo',o.modelo);set('de-defeito',o.defeito);set('de-solucao',o.solucao);
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
-  set('de-tel',o.tel);set('de-endereco',o.endereco);
+  set('de-tel',o.tel);set('de-endereco',o.endereco);set('de-complemento',o.complemento);
   document.getElementById('de-periodo').value=o.periodo||'manha';
   document.getElementById('de-tec').value=o.techId||'';
   document.getElementById('de-tipo').value=o.tipo||'';
@@ -1086,6 +1100,7 @@ async function saveDrawer(){
       obs:document.getElementById('de-obs').value,
       tel:document.getElementById('de-tel').value,
       endereco:document.getElementById('de-endereco').value,
+      complemento:document.getElementById('de-complemento').value,
       status:drwState.status, ftc:drwState.ftc,
       valor:document.getElementById('drw-valor').value,
       pecas:document.getElementById('drw-pecas').value,
@@ -1139,6 +1154,7 @@ async function saveOS(){
       techId, obs:document.getElementById('m-obs').value||'',
       tel:document.getElementById('m-tel').value||'',
       endereco:document.getElementById('m-endereco').value||'',
+      complemento:document.getElementById('m-complemento').value||'',
       status:'pendente',ftc:'nao',valor:'',pecas:'nao',obs_sel:'',nota:'',
       posicao:all.length,
       createdAt:getFB().serverTimestamp(), createdBy:getUID(),
@@ -1147,7 +1163,7 @@ async function saveOS(){
       await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),data);
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
       closeModal('modal-os');
-      ['m-os','m-modelo','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      ['m-os','m-modelo','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
       toast('OS '+osNum+' criada','ok');
     }catch(e){toast('Erro ao criar OS: '+e.message,'err');}
   };
@@ -1370,7 +1386,7 @@ function openRomaneio(tecId){
             <div style="font-size:7.5px;color:#555;margin-top:1px">${o.periodo==='manha'?'Manhã':'Tarde'} · ${(o.prio||'').toUpperCase()}-${i+1}</div>
           </td>
           <td style="font-size:8.5px">${o.modelo||'—'}</td>
-          <td style="font-size:8px">${o.endereco||o.bairro+(o.cep?' - CEP: '+o.cep:'')}</td>
+          <td style="font-size:8px">${fmtEndereco(o)}</td>
           <td style="font-size:8.5px">${o.tel||'—'}</td>
           <td style="font-size:8px">${o.defeito||'—'}</td>
           <td style="font-size:8px">${o.obs||o.obs_sel||'—'}</td>
