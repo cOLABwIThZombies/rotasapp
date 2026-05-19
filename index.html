@@ -330,6 +330,32 @@ button,select,input,textarea{font-family:inherit}
 .sync-badge{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--ok-bg);color:var(--ok-tx);border:1px solid #9FE1CB;display:flex;align-items:center;gap:4px;flex-shrink:0}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* ── PEÇAS ── */
+.modal-tabs{display:flex;border-bottom:1px solid var(--brd);flex-shrink:0;padding:0 18px}
+.modal-tab{padding:8px 14px;font-size:12.5px;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;margin-bottom:-1px;display:flex;align-items:center;gap:6px;user-select:none}
+.modal-tab:hover{color:var(--tx)}.modal-tab.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:500}
+.modal-panel{display:none}.modal-panel.on{display:block}
+.tab-badge{background:var(--tx);color:#fff;font-size:9px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:16px;text-align:center;line-height:1.4}
+.modal-tab:not(.on) .tab-badge{background:var(--surf2);color:var(--tx2)}
+.parts-input-row{display:grid;grid-template-columns:1fr 130px 70px auto;gap:8px;margin-bottom:12px;align-items:flex-end}
+.parts-list-hdr{display:grid;grid-template-columns:1fr 56px 28px;gap:8px;padding:6px 10px;background:var(--surf2);border-radius:var(--r) var(--r) 0 0;border:1px solid var(--brd);border-bottom:none;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px}
+.parts-list-wrap{border:1px solid var(--brd);border-radius:0 0 var(--r) var(--r);overflow:hidden}
+.part-item{display:grid;grid-template-columns:1fr 56px 28px;gap:8px;padding:9px 10px;align-items:center;border-bottom:.5px solid var(--brd);transition:background .1s}
+.part-item:last-child{border-bottom:none}.part-item:hover{background:var(--surf2)}
+.part-code{font-family:'DM Mono',monospace;font-size:12.5px;font-weight:500;color:var(--tx)}
+.part-desc{font-size:11px;color:var(--tx3);margin-top:1px}
+.part-qty{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--tx2);text-align:center}
+.btn-rm-part{width:26px;height:26px;background:none;border:1px solid var(--brd);border-radius:5px;cursor:pointer;color:var(--tx3);font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.btn-rm-part:hover{background:var(--err-bg);border-color:#fca5a5;color:var(--err)}
+.parts-empty{padding:28px;text-align:center;color:var(--tx3);font-size:12.5px}
+.parts-summary{display:none;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--ok-bg);border-radius:var(--r);margin-top:8px;font-size:12px;color:var(--ok-tx);font-weight:500;border:1px solid #9FE1CB}
+.rom-parts-tbl{width:100%;border-collapse:collapse;border:1px solid #000}
+.rom-parts-tbl td,.rom-parts-tbl th{border:1px solid #000;padding:3px 5px;font-size:8.5px;vertical-align:top}
+.rom-parts-tbl th{background:#d0d0d0;font-weight:700;font-size:8px;text-transform:uppercase;text-align:left}
+.drw-parts-list{border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;margin-top:6px}
+.drw-part-hdr{display:grid;grid-template-columns:1fr 52px 28px;gap:8px;padding:6px 10px;background:var(--surf2);font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--brd)}
+.drw-part-row{display:grid;grid-template-columns:1fr 52px 28px;gap:8px;padding:8px 10px;align-items:center;border-bottom:.5px solid var(--brd);font-size:12px}
+.drw-part-row:last-child{border-bottom:none}
 @media print{
   body>*:not(#modal-rom):not(#modal-pdf){display:none!important}
   .moverlay{position:static;background:none}.modal{box-shadow:none;border:none;max-height:none}
@@ -518,6 +544,7 @@ button,select,input,textarea{font-family:inherit}
   <div class="drw-tabs">
     <div class="drw-tab on" onclick="drwTab('info',this)">Dados OS</div>
     <div class="drw-tab" onclick="drwTab('posrota',this)">Pós-rota</div>
+    <div class="drw-tab" onclick="drwTab('pecas',this)">Peças <span class="tab-badge" id="drw-pecas-badge" style="margin-left:3px">0</span></div>
     <div class="drw-tab" onclick="drwTab('hist',this)">Histórico</div>
   </div>
   <div class="drw-body">
@@ -555,6 +582,17 @@ button,select,input,textarea{font-family:inherit}
       </div>
       <div class="dfield"><span class="dlbl">Anotação livre</span><textarea class="dta" id="drw-nota"></textarea></div>
     </div>
+    <div class="dpanel" id="dp-pecas">
+      <div class="dsect" style="margin-top:0">Peças desta OS</div>
+      <div class="parts-input-row" style="grid-template-columns:1fr 90px auto;margin-bottom:10px">
+        <div><span class="dlbl">Código</span><input class="dinp" id="drw-peca-codigo" placeholder="Ex: BN96-52542A" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
+        <div><span class="dlbl">Qtd</span><input class="dinp" id="drw-peca-qty" type="number" value="1" min="1" style="text-align:center" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
+        <button class="btn-save" style="height:36px;padding:0 12px;align-self:flex-end;white-space:nowrap" onclick="drwPecaAdd()">+ Add</button>
+      </div>
+      <div class="dfield" style="margin-bottom:8px"><span class="dlbl">Descrição</span><input class="dinp" id="drw-peca-desc" placeholder="Nome da peça (opcional)"></div>
+      <div id="drw-parts-wrap"><div class="parts-empty" style="padding:20px">🔩 Nenhuma peça adicionada.</div></div>
+      <div class="parts-summary" id="drw-parts-summary"></div>
+    </div>
     <div class="dpanel" id="dp-hist"><div class="dsect" style="margin-top:0">Linha do tempo</div><div id="drw-audit-list"></div></div>
   </div>
   <div class="drw-foot"><button class="btn-ghost" onclick="closeDrawer()">Cancelar</button><button class="btn-save" onclick="saveDrawer()">Salvar alterações</button></div>
@@ -564,23 +602,48 @@ button,select,input,textarea{font-family:inherit}
 <div class="moverlay" id="modal-os">
   <div class="modal">
     <div class="mhdr"><span class="mtitle">Nova ordem de serviço</span><button class="mclose" onclick="closeModal('modal-os')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div>
-    <div class="mbody">
-      <div class="mfull"><label class="lbl">Número da OS</label><input class="inp nm" id="m-os" placeholder="417574099"></div>
-      <div><label class="lbl">Tipo de OS</label><select class="inp nm" id="m-tipo"></select></div>
-      <div><label class="lbl">Período</label><select class="inp nm" id="m-periodo"><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
-      <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
-      <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
-      <div><label class="lbl">Possível solução</label><input class="inp nm" id="m-solucao"></div>
-      <div><label class="lbl">Bairro</label><input class="inp nm" id="m-bairro"></div>
-      <div><label class="lbl">CEP</label><input class="inp nm" id="m-cep"></div>
-      <div><label class="lbl">Técnico</label><select class="inp nm" id="m-tec"></select></div>
-      <div><label class="lbl">Prioridade</label><select class="inp nm" id="m-prio"><option value="lp">LP</option><option value="ow">OW</option></select></div>
-      <div><label class="lbl">Telefone</label><input class="inp nm" id="m-tel"></div>
-      <div><label class="lbl">Nome / Endereço</label><input class="inp nm" id="m-endereco" placeholder="Ex: João Silva — Rua das Flores, 123"></div>
-      <div><label class="lbl">Complemento</label><input class="inp nm" id="m-complemento" placeholder="Apto 42, Bloco B..."></div>
-      <div class="mfull"><label class="lbl">Observações</label><textarea class="inp nm" id="m-obs" style="resize:vertical;min-height:48px"></textarea></div>
+    <!-- ABAS -->
+    <div class="modal-tabs">
+      <div class="modal-tab on" id="mos-tab-os" onclick="mosTab('os',this)">Dados da OS</div>
+      <div class="modal-tab" id="mos-tab-pecas" onclick="mosTab('pecas',this)">Peças <span class="tab-badge" id="mos-pecas-badge">0</span></div>
     </div>
-    <div class="mfoot"><button class="btn-ghost" onclick="closeModal('modal-os')">Cancelar</button><button class="btn-save" onclick="saveOS()">Salvar OS</button></div>
+    <!-- PAINEL OS -->
+    <div class="modal-panel on" id="mos-panel-os" style="overflow-y:auto;flex:1">
+      <div class="mbody">
+        <div class="mfull"><label class="lbl">Número da OS</label><input class="inp nm" id="m-os" placeholder="417574099"></div>
+        <div><label class="lbl">Tipo de OS</label><select class="inp nm" id="m-tipo"></select></div>
+        <div><label class="lbl">Período</label><select class="inp nm" id="m-periodo"><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
+        <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
+        <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
+        <div><label class="lbl">Possível solução</label><input class="inp nm" id="m-solucao"></div>
+        <div><label class="lbl">Bairro</label><input class="inp nm" id="m-bairro"></div>
+        <div><label class="lbl">CEP</label><input class="inp nm" id="m-cep"></div>
+        <div><label class="lbl">Técnico</label><select class="inp nm" id="m-tec"></select></div>
+        <div><label class="lbl">Prioridade</label><select class="inp nm" id="m-prio"><option value="lp">LP</option><option value="ow">OW</option></select></div>
+        <div><label class="lbl">Telefone</label><input class="inp nm" id="m-tel"></div>
+        <div><label class="lbl">Nome / Endereço</label><input class="inp nm" id="m-endereco" placeholder="Ex: João Silva — Rua das Flores, 123"></div>
+        <div><label class="lbl">Complemento</label><input class="inp nm" id="m-complemento" placeholder="Apto 42, Bloco B..."></div>
+        <div class="mfull"><label class="lbl">Observações</label><textarea class="inp nm" id="m-obs" style="resize:vertical;min-height:48px"></textarea></div>
+      </div>
+    </div>
+    <!-- PAINEL PEÇAS -->
+    <div class="modal-panel" id="mos-panel-pecas" style="padding:16px 18px;overflow-y:auto;flex:1">
+      <div class="parts-input-row">
+        <div><span class="lbl">Código da peça</span><input class="inp nm" id="mos-codigo" placeholder="Ex: BN96-52542A" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mos-desc').focus()}"></div>
+        <div><span class="lbl">Descrição</span><input class="inp nm" id="mos-desc" placeholder="Nome da peça" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mos-qty').focus()}"></div>
+        <div><span class="lbl">Qtd</span><input class="inp nm" id="mos-qty" type="number" value="1" min="1" style="text-align:center" onkeydown="if(event.key==='Enter'){event.preventDefault();mosPecaAdd()}"></div>
+        <button class="btn-save" style="height:36px;padding:0 14px;white-space:nowrap" onclick="mosPecaAdd()">+ Adicionar</button>
+      </div>
+      <div id="mos-parts-wrap"><div class="parts-empty">🔩 Nenhuma peça adicionada.<br><span style="font-size:11px">Digite o código acima e pressione Enter.</span></div></div>
+      <div class="parts-summary" id="mos-parts-summary"></div>
+    </div>
+    <div class="mfoot">
+      <div style="font-size:12px;color:var(--tx3)" id="mos-footer-info"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="closeModal('modal-os')">Cancelar</button>
+        <button class="btn-save" onclick="saveOS()">Salvar OS</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1055,6 +1118,9 @@ function openDrawer(id){
   set('de-modelo',o.modelo);set('de-defeito',o.defeito);set('de-solucao',o.solucao);
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
   set('de-tel',o.tel);set('de-endereco',o.endereco);set('de-complemento',o.complemento);
+  // Carregar peças da OS
+  drwPecas=(o.pecas_lista||[]).map(p=>({...p,id:Date.now()+Math.random()}));
+  drwPecasRender();
   document.getElementById('de-periodo').value=o.periodo||'manha';
   document.getElementById('de-tec').value=o.techId||'';
   document.getElementById('de-tipo').value=o.tipo||'';
@@ -1106,6 +1172,8 @@ async function saveDrawer(){
       pecas:document.getElementById('drw-pecas').value,
       obs_sel:document.getElementById('drw-obs-sel').value,
       nota:document.getElementById('drw-nota').value,
+      pecas_lista:drwPecas.map(({id:_,...p})=>p),
+      pecas:drwPecas.length>0?'sim':'nao',
       updatedAt:getFB().serverTimestamp(), updatedBy:getUID(),
     };
     try{
@@ -1135,7 +1203,120 @@ async function deleteOS(){
 /* ═══════════════════════════════════════════════════════════
    NOVA OS
 ═══════════════════════════════════════════════════════════ */
-function openModalOS(){document.getElementById('modal-os').classList.add('on')}
+/* ══ PEÇAS — MODAL NOVA OS ══ */
+let mosPecas = []; // peças da nova OS sendo criada
+
+function mosTab(tab, el){
+  document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.modal-panel').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('mos-panel-'+tab).classList.add('on');
+  if(tab==='pecas') setTimeout(()=>document.getElementById('mos-codigo').focus(),50);
+}
+
+function mosPecaAdd(){
+  const codigo=document.getElementById('mos-codigo').value.trim().toUpperCase();
+  if(!codigo){document.getElementById('mos-codigo').focus();toast('Informe o código da peça','warn');return;}
+  const desc=document.getElementById('mos-desc').value.trim();
+  const qty=parseInt(document.getElementById('mos-qty').value)||1;
+  const existing=mosPecas.find(p=>p.codigo===codigo);
+  if(existing){existing.qty+=qty;toast(`Qtd atualizada: ${codigo} → ${existing.qty} un.`);}
+  else{mosPecas.push({id:Date.now(),codigo,desc:desc||'—',qty,status:'Pendente'});}
+  document.getElementById('mos-codigo').value='';
+  document.getElementById('mos-desc').value='';
+  document.getElementById('mos-qty').value='1';
+  document.getElementById('mos-codigo').focus();
+  mosPecasRender();
+}
+
+function mosPecaRemove(id){
+  mosPecas=mosPecas.filter(p=>p.id!==id);
+  mosPecasRender();
+  toast('Peça removida');
+}
+
+function mosPecasRender(){
+  const wrap=document.getElementById('mos-parts-wrap');
+  const badge=document.getElementById('mos-pecas-badge');
+  const summary=document.getElementById('mos-parts-summary');
+  const footer=document.getElementById('mos-footer-info');
+  badge.textContent=mosPecas.length||'0';
+  if(footer) footer.textContent=mosPecas.length?`${mosPecas.length} peça(s) adicionada(s)`:'';
+  if(!mosPecas.length){
+    wrap.innerHTML='<div class="parts-empty">🔩 Nenhuma peça adicionada.<br><span style="font-size:11px">Digite o código acima e pressione Enter.</span></div>';
+    summary.style.display='none'; return;
+  }
+  const totalQty=mosPecas.reduce((s,p)=>s+p.qty,0);
+  summary.style.display='flex';
+  summary.innerHTML=`<span>✓ ${mosPecas.length} tipo(s) · ${totalQty} unidade(s)</span>`;
+  wrap.innerHTML=`
+    <div class="parts-list-hdr"><span>Código / Descrição</span><span style="text-align:center">Qtd</span><span></span></div>
+    <div class="parts-list-wrap">
+      ${mosPecas.map(p=>`<div class="part-item">
+        <div><div class="part-code">${p.codigo}</div><div class="part-desc">${p.desc}</div></div>
+        <div class="part-qty">${p.qty}</div>
+        <button class="btn-rm-part" onclick="mosPecaRemove(${p.id})">✕</button>
+      </div>`).join('')}
+    </div>`;
+}
+
+function openModalOS(){
+  mosPecas=[];
+  mosPecasRender();
+  // Reset abas
+  document.getElementById('mos-tab-os').classList.add('on');
+  document.getElementById('mos-tab-pecas').classList.remove('on');
+  document.getElementById('mos-panel-os').classList.add('on');
+  document.getElementById('mos-panel-pecas').classList.remove('on');
+  document.getElementById('modal-os').classList.add('on');
+}
+
+/* ══ PEÇAS — DRAWER EDIÇÃO ══ */
+let drwPecas = [];
+
+function drwPecaAdd(){
+  const codigo=document.getElementById('drw-peca-codigo').value.trim().toUpperCase();
+  if(!codigo){document.getElementById('drw-peca-codigo').focus();toast('Informe o código','warn');return;}
+  const desc=document.getElementById('drw-peca-desc').value.trim();
+  const qty=parseInt(document.getElementById('drw-peca-qty').value)||1;
+  const existing=drwPecas.find(p=>p.codigo===codigo);
+  if(existing){existing.qty+=qty;toast(`Qtd atualizada: ${codigo} → ${existing.qty} un.`);}
+  else{drwPecas.push({id:Date.now(),codigo,desc:desc||'—',qty,status:'Pendente'});}
+  document.getElementById('drw-peca-codigo').value='';
+  document.getElementById('drw-peca-desc').value='';
+  document.getElementById('drw-peca-qty').value='1';
+  document.getElementById('drw-peca-codigo').focus();
+  drwPecasRender();
+}
+
+function drwPecaRemove(id){
+  drwPecas=drwPecas.filter(p=>p.id!==id);
+  drwPecasRender();
+  toast('Peça removida');
+}
+
+function drwPecasRender(){
+  const wrap=document.getElementById('drw-parts-wrap');
+  const badge=document.getElementById('drw-pecas-badge');
+  const summary=document.getElementById('drw-parts-summary');
+  if(!badge||!wrap) return;
+  badge.textContent=drwPecas.length||'0';
+  if(!drwPecas.length){
+    wrap.innerHTML='<div class="parts-empty" style="padding:20px">🔩 Nenhuma peça adicionada.</div>';
+    if(summary) summary.style.display='none'; return;
+  }
+  if(summary){summary.style.display='flex';summary.innerHTML=`<span>✓ ${drwPecas.length} tipo(s) · ${drwPecas.reduce((s,p)=>s+p.qty,0)} unidade(s)</span>`;}
+  wrap.innerHTML=`
+    <div class="drw-part-hdr"><span>Código / Descrição</span><span style="text-align:center">Qtd</span><span></span></div>
+    <div class="drw-parts-list">
+      ${drwPecas.map(p=>`<div class="drw-part-row">
+        <div><div class="part-code">${p.codigo}</div><div class="part-desc">${p.desc}</div></div>
+        <div class="part-qty">${p.qty}</div>
+        <button class="btn-rm-part" onclick="drwPecaRemove(${p.id})">✕</button>
+      </div>`).join('')}
+    </div>`;
+}
+
 async function saveOS(){
   const techId=document.getElementById('m-tec').value;
   const all=ordensForDate(currentDate).filter(o=>o.techId===techId);
@@ -1155,7 +1336,8 @@ async function saveOS(){
       tel:document.getElementById('m-tel').value||'',
       endereco:document.getElementById('m-endereco').value||'',
       complemento:document.getElementById('m-complemento').value||'',
-      status:'pendente',ftc:'nao',valor:'',pecas:'nao',obs_sel:'',nota:'',
+      pecas_lista:mosPecas.map(({id:_,...p})=>p),
+      status:'pendente',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
       posicao:all.length,
       createdAt:getFB().serverTimestamp(), createdBy:getUID(),
     };
@@ -1163,6 +1345,7 @@ async function saveOS(){
       await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),data);
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
       closeModal('modal-os');
+      mosPecas=[];
       ['m-os','m-modelo','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
       toast('OS '+osNum+' criada','ok');
     }catch(e){toast('Erro ao criar OS: '+e.message,'err');}
@@ -1403,6 +1586,27 @@ function openRomaneio(tecId){
     <div style="border:1px solid #000;border-left:0;border-top:0;padding:4px 8px;font-size:8.5px;min-width:130px;text-align:center"><b>Total OS: ${os.length}</b></div>
     <div style="border:1px solid #000;border-left:0;border-top:0;padding:4px 8px;font-size:8px;min-width:120px">Assinatura Técnico: __________</div>
   </div>
+
+  ${os.some(o=>(o.pecas_lista||[]).length>0)?`
+  <div style="font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.5px;background:#b0b0b0;padding:4px 8px;border:1px solid #000;border-top:0;text-align:center">PEÇAS SOLICITADAS</div>
+  <table class="rom-parts-tbl" style="margin-top:0">
+    <thead><tr><th style="width:11%">OS</th><th style="width:20%">Código</th><th>Descrição</th><th style="width:7%">Qtd</th><th style="width:12%">Status</th></tr></thead>
+    <tbody>
+      ${os.filter(o=>(o.pecas_lista||[]).length>0).flatMap(o=>(o.pecas_lista||[]).map(p=>`<tr>
+        <td style="font-family:monospace;font-size:8px">${o.os}</td>
+        <td style="font-family:monospace;font-weight:700;font-size:9px">${p.codigo}</td>
+        <td style="font-size:8px">${p.desc||'—'}</td>
+        <td style="text-align:center;font-weight:700">${p.qty}</td>
+        <td style="font-size:8px">${p.status||'Pendente'}</td>
+      </tr>`)).join('')}
+      <tr style="background:#f0f0f0;font-weight:700">
+        <td colspan="3" style="font-size:8px">TOTAL</td>
+        <td style="text-align:center;font-family:monospace">${os.reduce((s,o)=>s+(o.pecas_lista||[]).reduce((ss,p)=>ss+p.qty,s),0)}</td>
+        <td style="font-size:8px">${os.reduce((s,o)=>s+(o.pecas_lista||[]).length,0)} tipo(s)</td>
+      </tr>
+    </tbody>
+  </table>`:''}
+
   <div style="margin-top:4px;text-align:center;font-size:7.5px;color:#777">GestãoRotas · Gerado em ${new Date().toLocaleString('pt-BR')} · ${window._currentUser?.nome||'Sistema'}</div>`;
   openModal('modal-rom');
 }
