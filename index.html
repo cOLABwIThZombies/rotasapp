@@ -576,6 +576,7 @@ button,select,input,textarea{font-family:inherit}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="dfield"><span class="dlbl">Valor cobrado (R$)</span><input class="dinp" type="number" id="drw-valor" step="0.01" min="0"></div>
         <div class="dfield"><span class="dlbl">Peças usadas</span><select class="dsel" id="drw-pecas"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
+        <div class="dfield"><span class="dlbl">T.A.T</span><input class="dinp" id="drw-tat" type="text" placeholder="Ex: 2h30, 45min..." title="Tempo de atendimento técnico — preenchido pelo usuário"></div>
       </div>
       <div class="dfield"><span class="dlbl">Obs. pós-rota</span>
         <select class="dsel" id="drw-obs-sel"><option value="">Selecionar...</option><option>Reparo concluído</option><option>Retorno necessário</option><option>Aguardando faturamento</option><option>Peça solicitada</option><option>Cliente ausente</option><option>Reagendar</option><option>Aguardando aprovação</option><option>Sem conserto</option><option>Outro</option></select>
@@ -1070,6 +1071,12 @@ function makeCard(o){
     <div class="osc-tipo" style="background:${ts.bg};color:${ts.color}">${o.tipo||'—'}</div>
     <div class="osc-modelo">${o.modelo||'—'}</div>
     <div class="osc-defeito">${o.defeito||'—'}</div>
+    ${(o.pecas_lista||[]).length>0?`<div style="margin-bottom:5px;display:flex;flex-direction:column;gap:2px">
+      ${(o.pecas_lista||[]).map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;background:#fef6e4;border:0.5px solid #f5d98a;border-radius:3px;padding:2px 5px">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;font-weight:600;color:#633806">${p.codigo}</span>
+        <span style="font-size:9px;color:#633806;font-weight:500">×${p.qty}</span>
+      </div>`).join('')}
+    </div>`:''}
     ${o.valor?`<div class="osc-val">${fmtBRL(o.valor)}</div>`:''}
     <div class="osc-foot">
       <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.endereco||o.bairro||'—'}</div>
@@ -1126,6 +1133,7 @@ function openDrawer(id){
   document.getElementById('de-tipo').value=o.tipo||'';
   set('drw-valor',o.valor);
   document.getElementById('drw-pecas').value=o.pecas||'nao';
+  const tatEl=document.getElementById('drw-tat');if(tatEl)tatEl.value=o.tat||'';
   set('drw-obs-sel',o.obs_sel);set('drw-nota',o.nota);
   setRb('status',drwState.status);setRb('ftc',drwState.ftc);
   // Histórico desta OS
@@ -1170,10 +1178,10 @@ async function saveDrawer(){
       status:drwState.status, ftc:drwState.ftc,
       valor:document.getElementById('drw-valor').value,
       pecas:document.getElementById('drw-pecas').value,
+      tat:document.getElementById('drw-tat')?.value||'',
       obs_sel:document.getElementById('drw-obs-sel').value,
       nota:document.getElementById('drw-nota').value,
       pecas_lista:drwPecas.map(({id:_,...p})=>p),
-      pecas:drwPecas.length>0?'sim':'nao',
       updatedAt:getFB().serverTimestamp(), updatedBy:getUID(),
     };
     try{
@@ -1337,6 +1345,7 @@ async function saveOS(){
       endereco:document.getElementById('m-endereco').value||'',
       complemento:document.getElementById('m-complemento').value||'',
       pecas_lista:mosPecas.map(({id:_,...p})=>p),
+      tat:'',
       status:'pendente',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
       posicao:all.length,
       createdAt:getFB().serverTimestamp(), createdBy:getUID(),
@@ -1554,7 +1563,7 @@ function openRomaneio(tecId){
         <th style="width:10%">TELEFONE</th>
         <th style="width:14%">DEFEITO RELATADO</th>
         <th style="width:12%">OBSERVAÇÃO</th>
-        <th style="width:10%">PEÇAS USADAS SIM ( NÃO )</th>
+        <th style="width:10%">T.A.T</th>
         <th style="width:8%">INSTRUÇÕES</th>
       </tr>
     </thead>
@@ -1573,7 +1582,7 @@ function openRomaneio(tecId){
           <td style="font-size:8.5px">${o.tel||'—'}</td>
           <td style="font-size:8px">${o.defeito||'—'}</td>
           <td style="font-size:8px">${o.obs||o.obs_sel||'—'}</td>
-          <td style="font-size:8px;text-align:center">${o.pecas==='sim'?'<b>SIM</b>':'NÃO'}</td>
+          <td style="font-size:8.5px;text-align:center;font-weight:600">${o.tat||''}</td>
           <td style="font-size:7.5px">${o.nota||'—'}</td>
         </tr>`;
       }).join('') : `<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;font-size:11px">Nenhuma OS atribuída a este técnico para ${dtFmt}.</td></tr>`}
@@ -1590,14 +1599,14 @@ function openRomaneio(tecId){
   ${os.some(o=>(o.pecas_lista||[]).length>0)?`
   <div style="font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.5px;background:#b0b0b0;padding:4px 8px;border:1px solid #000;border-top:0;text-align:center">PEÇAS SOLICITADAS</div>
   <table class="rom-parts-tbl" style="margin-top:0">
-    <thead><tr><th style="width:11%">OS</th><th style="width:20%">Código</th><th>Descrição</th><th style="width:7%">Qtd</th><th style="width:12%">Status</th></tr></thead>
+    <thead><tr><th style="width:11%">OS</th><th style="width:20%">Código</th><th>Descrição</th><th style="width:7%">Qtd</th><th style="width:12%">Usado (caneta)</th></tr></thead>
     <tbody>
       ${os.filter(o=>(o.pecas_lista||[]).length>0).flatMap(o=>(o.pecas_lista||[]).map(p=>`<tr>
         <td style="font-family:monospace;font-size:8px">${o.os}</td>
         <td style="font-family:monospace;font-weight:700;font-size:9px">${p.codigo}</td>
         <td style="font-size:8px">${p.desc||'—'}</td>
         <td style="text-align:center;font-weight:700">${p.qty}</td>
-        <td style="font-size:8px">${p.status||'Pendente'}</td>
+        <td style="font-size:8px;min-width:60px">&nbsp;</td>
       </tr>`)).join('')}
       <tr style="background:#f0f0f0;font-weight:700">
         <td colspan="3" style="font-size:8px">TOTAL</td>
