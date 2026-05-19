@@ -395,6 +395,7 @@ button,select,input,textarea{font-family:inherit}
       <div class="ni" data-perm="calendario" onclick="go('calendario',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M1 7h14M5 1v3M11 1v3"/></svg>Calendário</div>
       <div class="ni" data-perm="finalizado" onclick="go('finalizado',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l4-5 2 2 4-6 3 3"/><path d="M2 15h12"/></svg>Hist. finalizado</div>
       <div class="ni" data-perm="auditoria" onclick="go('auditoria',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Auditoria</div>
+      <div class="ni" data-perm="finalizado" onclick="go('pendentes',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 11v.5"/></svg>Hist. pendentes</div>
       <div class="ni" data-perm="relatorios" onclick="go('relatorios',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l3-4 3 2 3-5 3 3"/><path d="M2 15h12"/></svg>Relatórios</div>
       <div class="nsec" style="margin-top:6px">Cadastros</div>
       <div class="ni" data-perm="tecnicos" onclick="go('tecnicos',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M3 15c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg>Técnicos</div>
@@ -479,6 +480,26 @@ button,select,input,textarea{font-family:inherit}
     <div id="screen-auditoria" class="screen">
       <div class="hdr"><span class="htitle">Auditoria</span><div class="hsp"></div><span id="audit-cnt" style="font-size:12px;color:var(--tx3)"></span></div>
       <div class="audit-wrap" id="audit-wrap"></div>
+    </div>
+
+    <!-- HIST. PENDENTES -->
+    <div id="screen-pendentes" class="screen">
+      <div class="hdr"><span class="htitle">Histórico de pendentes</span><div class="hsp"></div><span id="pend-cnt" style="font-size:12px;color:var(--tx3)"></span></div>
+      <div class="hf-wrap">
+        <div class="hf-filters">
+          <div class="sw"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M10 10l3 3"/></svg><input class="si" type="text" style="width:180px" placeholder="Buscar OS ou técnico..." id="pend-search" oninput="renderPendentes()"></div>
+          <select class="inp nm" id="pend-tec" style="width:150px" onchange="renderPendentes()"><option value="">Todos técnicos</option></select>
+          <select class="inp nm" id="pend-motivo" style="width:140px" onchange="renderPendentes()">
+            <option value="">Todos os motivos</option>
+            <option value="criacao">Criação</option>
+            <option value="retorno">Retorno ao pendente</option>
+          </select>
+          <input type="date" class="inp nm" id="pend-di" style="width:136px" onchange="renderPendentes()">
+          <input type="date" class="inp nm" id="pend-df" style="width:136px" onchange="renderPendentes()">
+          <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="clearPendFilt()">Limpar</button>
+        </div>
+        <div id="pend-list"></div>
+      </div>
     </div>
 
     <!-- RELATÓRIOS -->
@@ -577,6 +598,18 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Valor cobrado (R$)</span><input class="dinp" type="number" id="drw-valor" step="0.01" min="0"></div>
         <div class="dfield"><span class="dlbl">Peças usadas</span><select class="dsel" id="drw-pecas"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
         <div class="dfield"><span class="dlbl">T.A.T</span><input class="dinp" id="drw-tat" type="text" placeholder="Ex: 2h30, 45min..." title="Tempo de atendimento técnico — preenchido pelo usuário"></div>
+        <div class="dfield"><span class="dlbl">Tipo de pagamento</span>
+          <select class="dsel" id="drw-pagamento">
+            <option value="">Não informado</option>
+            <option value="faturado">Faturado</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="pix">PIX</option>
+            <option value="cartao_credito">Cartão de crédito</option>
+            <option value="cartao_debito">Cartão de débito</option>
+            <option value="boleto">Boleto</option>
+            <option value="isento">Isento</option>
+          </select>
+        </div>
       </div>
       <div class="dfield"><span class="dlbl">Obs. pós-rota</span>
         <select class="dsel" id="drw-obs-sel"><option value="">Selecionar...</option><option>Reparo concluído</option><option>Retorno necessário</option><option>Aguardando faturamento</option><option>Peça solicitada</option><option>Cliente ausente</option><option>Reagendar</option><option>Aguardando aprovação</option><option>Sem conserto</option><option>Outro</option></select>
@@ -710,7 +743,7 @@ const FER_SP =['01-25','07-09'];
 const S = {
   tecnicos:[], auxiliares:[], tipos:[], cargos:[], usuarios:[],
   ordens:{},      // { "YYYY-MM-DD": [os,...] }
-  auditoria:[],
+  auditoria:[], pendentes:[],
 };
 
 let filtro=null, draggingId=null, drawerOsId=null, drwState={};
@@ -880,6 +913,12 @@ function startStaticListeners(){
     S.auditoria=snap.docs.slice(0,100).map(d=>({id:d.id,...d.data()}));
     if(document.getElementById('screen-auditoria').classList.contains('on')) renderAuditoria();
   });
+
+  // Histórico de pendentes (últimos 200)
+  unsubs.pendentes=onSnapshot(query(collection(db,'historico_pendentes'),orderBy('ts','desc')), snap=>{
+    S.pendentes=snap.docs.slice(0,200).map(d=>({id:d.id,...d.data()}));
+    if(document.getElementById('screen-pendentes').classList.contains('on')) renderPendentes();
+  });
 }
 
 function subscribeOrdens(data){
@@ -917,6 +956,7 @@ function go(name,el){
   if(name==='calendario') renderCalendario();
   if(name==='finalizado') renderFinalizado();
   if(name==='auditoria')  renderAuditoria();
+  if(name==='pendentes')  { populatePendTec(); renderPendentes(); }
   if(name==='dashboard')  renderDashboard();
 }
 function goToday(){ setCurrentDate(TODAY_STR); go('rotas',document.querySelector('.ni')); }
@@ -1134,6 +1174,7 @@ function openDrawer(id){
   set('drw-valor',o.valor);
   document.getElementById('drw-pecas').value=o.pecas||'nao';
   const tatEl=document.getElementById('drw-tat');if(tatEl)tatEl.value=o.tat||'';
+  const pgEl=document.getElementById('drw-pagamento');if(pgEl)pgEl.value=o.pagamento||'';
   set('drw-obs-sel',o.obs_sel);set('drw-nota',o.nota);
   setRb('status',drwState.status);setRb('ftc',drwState.ftc);
   // Histórico desta OS
@@ -1179,6 +1220,7 @@ async function saveDrawer(){
       valor:document.getElementById('drw-valor').value,
       pecas:document.getElementById('drw-pecas').value,
       tat:document.getElementById('drw-tat')?.value||'',
+      pagamento:document.getElementById('drw-pagamento')?.value||'',
       obs_sel:document.getElementById('drw-obs-sel').value,
       nota:document.getElementById('drw-nota').value,
       pecas_lista:drwPecas.map(({id:_,...p})=>p),
@@ -1188,6 +1230,9 @@ async function saveDrawer(){
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
         await logAudit(o.os,'finalizacao','Finalizado','ok');
+      } else if(wasFinished&&updates.status==='pendente'){
+        await logAudit(o.os,'pendente','Voltou para pendente','warn');
+        await logPendente(o.os, 'retorno', updates.techId||o.techId);
       } else {
         await logAudit(o.os,'edicao','Dados atualizados','gray');
       }
@@ -1353,6 +1398,7 @@ async function saveOS(){
     try{
       await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),data);
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
+      await logPendente(osNum, 'criacao', techId);
       closeModal('modal-os');
       mosPecas=[];
       ['m-os','m-modelo','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1366,6 +1412,76 @@ document.getElementById('modal-os').addEventListener('click',e=>{if(e.target===d
 /* ═══════════════════════════════════════════════════════════
    AUDITORIA / LOG
 ═══════════════════════════════════════════════════════════ */
+/* ══ HISTÓRICO DE PENDENTES ══ */
+async function logPendente(os, motivo, techId){
+  try{
+    await getFB().addDoc(getFB().collection(getDB(),'historico_pendentes'),{
+      os:String(os||''),
+      motivo, // 'criacao' | 'retorno'
+      techId:techId||'',
+      tecNome:S.tecnicos.find(t=>t.id===techId)?.nome||'—',
+      data:currentDate,
+      hora:nowTime(),
+      ts:getFB().serverTimestamp(),
+      user:window._currentUser?.nome||'Sistema',
+      uid:getUID()||'',
+    });
+  }catch(e){console.warn('pendente log err:',e);}
+}
+
+/* ══ RENDER HISTÓRICO PENDENTES ══ */
+function clearPendFilt(){
+  ['pend-search','pend-di','pend-df'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['pend-tec','pend-motivo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderPendentes();
+}
+function populatePendTec(){
+  const sel=document.getElementById('pend-tec');if(!sel)return;
+  sel.innerHTML='<option value="">Todos técnicos</option>'+S.tecnicos.map(t=>`<option value="${t.id}">${t.nome}</option>`).join('');
+}
+function renderPendentes(){
+  const search=(document.getElementById('pend-search')?.value||'').toLowerCase();
+  const tec=document.getElementById('pend-tec')?.value||'';
+  const di=document.getElementById('pend-di')?.value||'';
+  const df=document.getElementById('pend-df')?.value||'';
+  const motivo=document.getElementById('pend-motivo')?.value||'';
+
+  // Carrega do Firestore ao abrir — S.pendentes é populado pelo listener
+  const list=S.pendentes||[];
+  const filtered=list.filter(p=>{
+    if(tec&&p.techId!==tec)return false;
+    if(di&&p.data<di)return false;
+    if(df&&p.data>df)return false;
+    if(motivo&&p.motivo!==motivo)return false;
+    if(search&&!String(p.os).includes(search)&&!(p.tecNome||'').toLowerCase().includes(search))return false;
+    return true;
+  });
+
+  const wrap=document.getElementById('pend-list'); if(!wrap)return;
+  document.getElementById('pend-cnt').textContent=filtered.length+' registros';
+
+  if(!filtered.length){wrap.innerHTML='<div style="font-size:13px;color:var(--tx3);padding:24px;text-align:center">Nenhum registro encontrado.</div>';return;}
+  wrap.innerHTML='';
+  filtered.forEach(p=>{
+    const t=S.tecnicos.find(x=>x.id===p.techId);
+    const isRetorno=p.motivo==='retorno';
+    const el=document.createElement('div');
+    el.style.cssText='background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:11px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px';
+    el.innerHTML=`
+      <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:${isRetorno?'var(--warn-bg)':'var(--ok-bg)'};color:${isRetorno?'var(--warn-tx)':'var(--ok-tx)'};white-space:nowrap">${isRetorno?'Retorno':'Criação'}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">#${p.os}</span>
+      <div style="flex:1">
+        <div style="font-size:12.5px;color:var(--tx)">${t?`<span style="display:inline-flex;align-items:center;gap:5px"><div style="width:18px;height:18px;border-radius:50%;background:${t.color||'#eee'};color:${t.tx||'#333'};display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:600">${t.ini||'?'}</div>${t.nome}</span>`:p.tecNome||'—'}</div>
+        <div style="font-size:11px;color:var(--tx3)">${p.motivo==='criacao'?'OS criada como pendente':'Retornou para pendente após finalização'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:11.5px;font-weight:500;color:var(--tx2)">${fmtShort(p.data||'')}</div>
+        <div style="font-size:11px;color:var(--tx3)">${p.hora||''} · ${p.user||''}</div>
+      </div>`;
+    wrap.appendChild(el);
+  });
+}
+
 async function logAudit(os,acao,desc,cor){
   try{
     await getFB().addDoc(getFB().collection(getDB(),'auditoria'),{
@@ -1712,6 +1828,49 @@ function renderRelatorios(){
     <div class="rel-card"><div class="rel-ct">Manhã vs Tarde</div><canvas id="ch-per" height="140"></canvas></div>
     <div class="rel-card"><div class="rel-ct">LP vs OW</div><canvas id="ch-prio" height="140"></canvas></div>
     <div class="rel-card full"><div class="rel-ct">Bairros mais atendidos</div><div id="ch-bairros"></div></div>
+    <div class="rel-card full">
+      <div class="rel-ct">Análise de faturamento — ${mesNome}</div>
+      <!-- KPIs faturamento -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
+        ${(()=>{
+          const finPag=fin.filter(o=>parseFloat(o.valor)>0);
+          const tipos_pag=['faturado','pix','dinheiro','cartao_credito','cartao_debito','boleto','isento',''];
+          const labels_pag={'faturado':'Faturado','pix':'PIX','dinheiro':'Dinheiro','cartao_credito':'Crédito','cartao_debito':'Débito','boleto':'Boleto','isento':'Isento','':'Não inf.'};
+          const cores_pag={'faturado':'var(--ow)','pix':'var(--ok)','dinheiro':'var(--warn)','cartao_credito':'var(--lp)','cartao_debito':'#9932CC','boleto':'var(--tx2)','isento':'var(--tx3)','':'var(--brd2)'};
+          return tipos_pag.map(tp=>{
+            const grupo=fin.filter(o=>( tp===''?(o.pagamento||'')==='':(o.pagamento||'')===tp));
+            if(!grupo.length)return '';
+            const tot=grupo.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+            return \`<div class="kpi"><div class="kpi-l">\${labels_pag[tp]}</div><div class="kpi-v" style="color:\${cores_pag[tp]};font-size:13px;margin-top:2px">\${tot>0?fmtBRL(tot):'—'}</div><div class="kpi-s">\${grupo.length} OS</div></div>\`;
+          }).join('');
+        })()}
+        <div class="kpi" style="border-color:var(--ok);border-width:2px"><div class="kpi-l">Total faturado</div><div class="kpi-v" style="color:var(--ok);font-size:13px;margin-top:2px">${fmtBRL(fat)}</div><div class="kpi-s">${fin.filter(o=>parseFloat(o.valor)>0).length} OS com valor</div></div>
+      </div>
+      <!-- Tabela detalhada faturamento por OS -->
+      <div class="rel-ct" style="margin-top:4px">Detalhamento por OS finalizada</div>
+      <table class="rel-tbl"><thead><tr><th>OS</th><th>Técnico</th><th>Tipo</th><th>Data</th><th>Pagamento</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${fin.filter(o=>parseFloat(o.valor)>0).sort((a,b)=>b.data.localeCompare(a.data)).map(o=>{
+        const t=S.tecnicos.find(x=>x.id===o.techId);
+        const pg_labels={'faturado':'Faturado','pix':'PIX','dinheiro':'Dinheiro','cartao_credito':'Crédito','cartao_debito':'Débito','boleto':'Boleto','isento':'Isento'};
+        const pg_colors={'faturado':'var(--ow-bg)#:#var(--ow-tx)','pix':'var(--ok-bg)#:#var(--ok-tx)','dinheiro':'var(--warn-bg)#:#var(--warn-tx)','cartao_credito':'var(--lp-bg)#:#var(--lp-tx)','cartao_debito':'#F5EDF8#:#5B2775','boleto':'var(--surf2)#:#var(--tx2)','isento':'var(--surf2)#:#var(--tx3)'};
+        const pgKey=o.pagamento||'';
+        const [pgBg,pgTx]=(pg_colors[pgKey]||'var(--surf2)#:#var(--tx3)').split('#:#');
+        return \`<tr>
+          <td style="font-family:'DM Mono',monospace;font-size:12px">\${o.os}</td>
+          <td style="font-size:12px">\${t?.nome.split(' ')[0]||'—'}</td>
+          <td style="font-size:11px;color:var(--tx2)">\${o.tipo||'—'}</td>
+          <td style="font-size:11.5px;color:var(--tx2)">\${fmtShort(o.data)}</td>
+          <td>\${pgKey?(\`<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:\${pgBg};color:\${pgTx}">\${pg_labels[pgKey]||pgKey}</span>\`):'<span style="font-size:11px;color:var(--tx3)">—</span>'}</td>
+          <td style="text-align:right;font-weight:600;color:var(--ok)">\${fmtBRL(o.valor)}</td>
+        </tr>\`;
+      }).join('')}
+      <tr style="border-top:1px solid var(--brd)">
+        <td colspan="5" style="font-size:11.5px;font-weight:600;color:var(--tx2)">Total</td>
+        <td style="text-align:right;font-weight:700;color:var(--ok);font-size:13px">${fmtBRL(fat)}</td>
+      </tr>
+      </tbody></table>
+    </div>
+
     <div class="rel-card full">
       <div class="rel-ct">Detalhamento por técnico</div>
       <table class="rel-tbl"><thead><tr><th>Técnico</th><th>Auxiliar</th><th>Total</th><th>Finaliz.</th><th>FTC</th><th>Peças</th><th>Faturamento</th><th>Taxa</th></tr></thead>
