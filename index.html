@@ -1825,6 +1825,59 @@ function renderRelatorios(){
   const fin=all.filter(o=>o.status==='finalizado');
   const fat=all.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const wrap=document.getElementById('rel-content'); if(!wrap)return;
+
+  // ── Bloco KPIs por tipo de pagamento (sem template aninhado) ──
+  const PG_LABELS={faturado:'Faturado',pix:'PIX',dinheiro:'Dinheiro',cartao_credito:'Crédito',cartao_debito:'Débito',boleto:'Boleto',isento:'Isento',''  :'Não inf.'};
+  const PG_COLORS={faturado:['var(--ow-bg)','var(--ow-tx)'],pix:['var(--ok-bg)','var(--ok-tx)'],dinheiro:['var(--warn-bg)','var(--warn-tx)'],cartao_credito:['var(--lp-bg)','var(--lp-tx)'],cartao_debito:['#F5EDF8','#5B2775'],boleto:['var(--surf2)','var(--tx2)'],isento:['var(--surf2)','var(--tx3)'],''  :['var(--surf2)','var(--tx3)']};
+  const fatKpis=Object.keys(PG_LABELS).map(tp=>{
+    const grupo=fin.filter(o=>(o.pagamento||'')=== tp);
+    if(!grupo.length)return '';
+    const tot=grupo.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+    return '<div class="kpi"><div class="kpi-l">'+PG_LABELS[tp]+'</div><div class="kpi-v" style="font-size:13px;margin-top:2px">'+(tot>0?fmtBRL(tot):'—')+'</div><div class="kpi-s">'+grupo.length+' OS</div></div>';
+  }).join('');
+
+  // ── Tabela detalhada faturamento (sem template aninhado) ──
+  const fatRows=fin.filter(o=>parseFloat(o.valor)>0).sort((a,b)=>b.data.localeCompare(a.data)).map(o=>{
+    const t=S.tecnicos.find(x=>x.id===o.techId);
+    const pgKey=o.pagamento||'';
+    const [pgBg,pgTx]=PG_COLORS[pgKey]||PG_COLORS[''];
+    const pgBadge=pgKey
+      ?'<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:'+pgBg+';color:'+pgTx+'">'+( PG_LABELS[pgKey]||pgKey)+'</span>'
+      :'<span style="font-size:11px;color:var(--tx3)">—</span>';
+    return '<tr>'
+      +'<td style="font-family:'DM Mono',monospace;font-size:12px">'+o.os+'</td>'
+      +'<td style="font-size:12px">'+(t?t.nome.split(' ')[0]:'—')+'</td>'
+      +'<td style="font-size:11px;color:var(--tx2)">'+(o.tipo||'—')+'</td>'
+      +'<td style="font-size:11.5px;color:var(--tx2)">'+fmtShort(o.data)+'</td>'
+      +'<td>'+pgBadge+'</td>'
+      +'<td style="text-align:right;font-weight:600;color:var(--ok)">'+fmtBRL(o.valor)+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // ── Tabela por técnico ──
+  const tecRows=S.tecnicos.map(t=>{
+    const tos=all.filter(o=>o.techId===t.id);
+    const tf=tos.filter(o=>o.status==='finalizado');
+    const tfat=tos.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+    const pct=tos.length?Math.round(tf.length/tos.length*100):0;
+    const aux=getAux(t.id);
+    return '<tr>'
+      +'<td><div style="display:flex;align-items:center;gap:7px"><div style="width:22px;height:22px;border-radius:50%;background:'+(t.color||'#eee')+';color:'+(t.tx||'#333')+';display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;flex-shrink:0">'+(t.ini||'?')+'</div>'+t.nome+'</div></td>'
+      +'<td>'+(aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?aux.nome:'—')+'</td>'
+      +'<td><b>'+tos.length+'</b></td><td>'+tf.length+'</td>'
+      +'<td>'+tos.filter(o=>o.ftc==='sim').length+'</td>'
+      +'<td>'+tos.filter(o=>o.pecas==='sim').length+'</td>'
+      +'<td style="color:var(--ok);font-weight:500">'+(tfat>0?fmtBRL(tfat):'—')+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:5px"><div style="flex:1;height:5px;background:var(--surf2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--ok);border-radius:3px"></div></div><span style="font-size:11px;width:28px">'+pct+'%</span></div></td>'
+      +'</tr>';
+  }).join('');
+
+  // ── Bairros ──
+  const bairros=[...new Set(all.map(o=>o.bairro).filter(Boolean))];
+  const bc=bairros.map(b=>all.filter(o=>o.bairro===b).length);
+  const mx=Math.max(...bc,1);
+  const bairrosHtml=bairros.map((b,i)=>'<div class="bar-row"><div class="bar-lbl" title="'+b+'">'+b+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(bc[i]/mx*100)+'%"></div></div><div class="bar-count">'+bc[i]+'</div></div>').join('');
+
   wrap.innerHTML=`
   <div class="export-row">
     <button class="btn-exp p" onclick="openPDFPreview()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2v7M4 6l3 3 3-3"/><path d="M2 11h10"/></svg>Gerar PDF — ${mesNome}</button>
@@ -1845,68 +1898,26 @@ function renderRelatorios(){
     <div class="rel-card"><div class="rel-ct">Tipo de OS</div><canvas id="ch-tipo" height="160"></canvas></div>
     <div class="rel-card"><div class="rel-ct">Manhã vs Tarde</div><canvas id="ch-per" height="140"></canvas></div>
     <div class="rel-card"><div class="rel-ct">LP vs OW</div><canvas id="ch-prio" height="140"></canvas></div>
-    <div class="rel-card full"><div class="rel-ct">Bairros mais atendidos</div><div id="ch-bairros"></div></div>
+    <div class="rel-card full"><div class="rel-ct">Bairros mais atendidos</div><div id="ch-bairros">${bairrosHtml}</div></div>
     <div class="rel-card full">
       <div class="rel-ct">Análise de faturamento — ${mesNome}</div>
-      <!-- KPIs faturamento -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">
-        ${(()=>{
-          const finPag=fin.filter(o=>parseFloat(o.valor)>0);
-          const tipos_pag=['faturado','pix','dinheiro','cartao_credito','cartao_debito','boleto','isento',''];
-          const labels_pag={'faturado':'Faturado','pix':'PIX','dinheiro':'Dinheiro','cartao_credito':'Crédito','cartao_debito':'Débito','boleto':'Boleto','isento':'Isento','':'Não inf.'};
-          const cores_pag={'faturado':'var(--ow)','pix':'var(--ok)','dinheiro':'var(--warn)','cartao_credito':'var(--lp)','cartao_debito':'#9932CC','boleto':'var(--tx2)','isento':'var(--tx3)','':'var(--brd2)'};
-          return tipos_pag.map(tp=>{
-            const grupo=fin.filter(o=>( tp===''?(o.pagamento||'')==='':(o.pagamento||'')===tp));
-            if(!grupo.length)return '';
-            const tot=grupo.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
-            return \`<div class="kpi"><div class="kpi-l">\${labels_pag[tp]}</div><div class="kpi-v" style="color:\${cores_pag[tp]};font-size:13px;margin-top:2px">\${tot>0?fmtBRL(tot):'—'}</div><div class="kpi-s">\${grupo.length} OS</div></div>\`;
-          }).join('');
-        })()}
-        <div class="kpi" style="border-color:var(--ok);border-width:2px"><div class="kpi-l">Total faturado</div><div class="kpi-v" style="color:var(--ok);font-size:13px;margin-top:2px">${fmtBRL(fat)}</div><div class="kpi-s">${fin.filter(o=>parseFloat(o.valor)>0).length} OS com valor</div></div>
+        ${fatKpis}
+        <div class="kpi" style="border-color:var(--ok);border-width:2px"><div class="kpi-l">Total</div><div class="kpi-v" style="color:var(--ok);font-size:13px;margin-top:2px">${fmtBRL(fat)}</div><div class="kpi-s">${fin.filter(o=>parseFloat(o.valor)>0).length} OS</div></div>
       </div>
-      <!-- Tabela detalhada faturamento por OS -->
-      <div class="rel-ct" style="margin-top:4px">Detalhamento por OS finalizada</div>
+      <div class="rel-ct">Detalhamento por OS finalizada</div>
       <table class="rel-tbl"><thead><tr><th>OS</th><th>Técnico</th><th>Tipo</th><th>Data</th><th>Pagamento</th><th style="text-align:right">Valor</th></tr></thead>
-      <tbody>${fin.filter(o=>parseFloat(o.valor)>0).sort((a,b)=>b.data.localeCompare(a.data)).map(o=>{
-        const t=S.tecnicos.find(x=>x.id===o.techId);
-        const pg_labels={'faturado':'Faturado','pix':'PIX','dinheiro':'Dinheiro','cartao_credito':'Crédito','cartao_debito':'Débito','boleto':'Boleto','isento':'Isento'};
-        const pg_colors={'faturado':'var(--ow-bg)#:#var(--ow-tx)','pix':'var(--ok-bg)#:#var(--ok-tx)','dinheiro':'var(--warn-bg)#:#var(--warn-tx)','cartao_credito':'var(--lp-bg)#:#var(--lp-tx)','cartao_debito':'#F5EDF8#:#5B2775','boleto':'var(--surf2)#:#var(--tx2)','isento':'var(--surf2)#:#var(--tx3)'};
-        const pgKey=o.pagamento||'';
-        const [pgBg,pgTx]=(pg_colors[pgKey]||'var(--surf2)#:#var(--tx3)').split('#:#');
-        return \`<tr>
-          <td style="font-family:'DM Mono',monospace;font-size:12px">\${o.os}</td>
-          <td style="font-size:12px">\${t?.nome.split(' ')[0]||'—'}</td>
-          <td style="font-size:11px;color:var(--tx2)">\${o.tipo||'—'}</td>
-          <td style="font-size:11.5px;color:var(--tx2)">\${fmtShort(o.data)}</td>
-          <td>\${pgKey?(\`<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:\${pgBg};color:\${pgTx}">\${pg_labels[pgKey]||pgKey}</span>\`):'<span style="font-size:11px;color:var(--tx3)">—</span>'}</td>
-          <td style="text-align:right;font-weight:600;color:var(--ok)">\${fmtBRL(o.valor)}</td>
-        </tr>\`;
-      }).join('')}
-      <tr style="border-top:1px solid var(--brd)">
-        <td colspan="5" style="font-size:11.5px;font-weight:600;color:var(--tx2)">Total</td>
-        <td style="text-align:right;font-weight:700;color:var(--ok);font-size:13px">${fmtBRL(fat)}</td>
-      </tr>
+      <tbody>${fatRows}
+        <tr style="border-top:1px solid var(--brd)">
+          <td colspan="5" style="font-size:11.5px;font-weight:600;color:var(--tx2)">Total</td>
+          <td style="text-align:right;font-weight:700;color:var(--ok);font-size:13px">${fmtBRL(fat)}</td>
+        </tr>
       </tbody></table>
     </div>
-
     <div class="rel-card full">
       <div class="rel-ct">Detalhamento por técnico</div>
       <table class="rel-tbl"><thead><tr><th>Técnico</th><th>Auxiliar</th><th>Total</th><th>Finaliz.</th><th>FTC</th><th>Peças</th><th>Faturamento</th><th>Taxa</th></tr></thead>
-      <tbody>${S.tecnicos.map(t=>{
-        const tos=all.filter(o=>o.techId===t.id);
-        const tf=tos.filter(o=>o.status==='finalizado');
-        const tfat=tos.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
-        const pct=tos.length?Math.round(tf.length/tos.length*100):0;
-        const aux=getAux(t.id);
-        return `<tr><td><div style="display:flex;align-items:center;gap:7px"><div style="width:22px;height:22px;border-radius:50%;background:${t.color||'#eee'};color:${t.tx||'#333'};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;flex-shrink:0">${t.ini||'?'}</div>${t.nome}</div></td>
-          <td>${aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?aux.nome:'—'}</td>
-          <td><b>${tos.length}</b></td><td>${tf.length}</td>
-          <td>${tos.filter(o=>o.ftc==='sim').length}</td>
-          <td>${tos.filter(o=>o.pecas==='sim').length}</td>
-          <td style="color:var(--ok);font-weight:500">${tfat>0?fmtBRL(tfat):'—'}</td>
-          <td><div style="display:flex;align-items:center;gap:5px"><div style="flex:1;height:5px;background:var(--surf2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--ok);border-radius:3px"></div></div><span style="font-size:11px;width:28px">${pct}%</span></div></td>
-        </tr>`;
-      }).join('')}</tbody></table>
+      <tbody>${tecRows}</tbody></table>
     </div>
   </div>`;
   setTimeout(()=>{
@@ -1916,13 +1927,9 @@ function renderRelatorios(){
     mkChart('ch-tipo','doughnut',tipos,tipos.map(tp=>all.filter(o=>o.tipo===tp).length),C);
     mkChart('ch-per','pie',['Manhã','Tarde'],[all.filter(o=>o.periodo==='manha').length,all.filter(o=>o.periodo==='tarde').length],['#EF9F27','#1D9E75']);
     mkChart('ch-prio','pie',['LP','OW'],[all.filter(o=>o.prio==='lp').length,all.filter(o=>o.prio==='ow').length],['#D85A30','#378ADD']);
-    const bairros=[...new Set(all.map(o=>o.bairro).filter(Boolean))];
-    const bc=bairros.map(b=>all.filter(o=>o.bairro===b).length);
-    const mx=Math.max(...bc,1);
-    const bd=document.getElementById('ch-bairros');
-    if(bd) bd.innerHTML=bairros.map((b,i)=>`<div class="bar-row"><div class="bar-lbl" title="${b}">${b}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(bc[i]/mx*100)}%"></div></div><div class="bar-count">${bc[i]}</div></div>`).join('');
   },80);
 }
+
 function mkChart(id,type,labels,data,colors){
   if(charts[id])charts[id].destroy();
   const ctx=document.getElementById(id); if(!ctx)return;
