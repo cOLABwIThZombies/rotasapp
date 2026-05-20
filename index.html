@@ -826,7 +826,7 @@ window.bootApp = async function(){
   // app-loading já está visível — ocultar só ao terminar
   const u = window._currentUser;
   // Cargo
-  const cargoSnap = await getFB().getDoc(getFB().doc(getDB(),'cargos',u.cargoId||'c1')).catch(()=>null);
+  const cargoSnap = await getFB().getDoc(getFB().doc(getDB(),'cargos',u.cargoId||'c1')).catch(()=>null); // catch evita travar se cargos não existir
   window._currentCargo = cargoSnap?.exists() ? {id:cargoSnap.id,...cargoSnap.data()} : getDefaultCargos().find(c=>c.id===u.cargoId)||getDefaultCargos()[0];
 
   // UI de identidade
@@ -866,8 +866,8 @@ function waitForData(){
     let tries=0;
     const check=setInterval(()=>{
       tries++;
-      // Resolve se tiver dados OU após 10s (timeout)
-      if(S.tecnicos.length||S.tipos.length||tries>40){clearInterval(check);resolve();}
+      // Resolve se dados chegaram OU após 8s de timeout (evita travar para sempre)
+      if(S.tecnicos.length||S.tipos.length||tries>32){clearInterval(check);resolve();}
     },250);
   });
 }
@@ -879,9 +879,11 @@ function startStaticListeners(){
   const{onSnapshot,collection,query,orderBy,doc}=getFB();
   const db=getDB();
 
-  // Técnicos
-  unsubs.tecnicos=onSnapshot(query(collection(db,'tecnicos'),orderBy('ordem','asc')), snap=>{
-    S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.ativo!==false);
+  // Técnicos — sem orderBy para não quebrar se campo 'ordem' não existir; ordena em JS
+  unsubs.tecnicos=onSnapshot(collection(db,'tecnicos'), snap=>{
+    S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(t=>t.ativo!==false)
+      .sort((a,b)=>(a.ordem||99)-(b.ordem||99)||(a.nome||'').localeCompare(b.nome||''));
     populateSelects(); renderBoard(); renderTecnicos(); renderVeiculos();
     if(document.getElementById('screen-auxiliares').classList.contains('on')) renderAuxiliares();
   });
@@ -892,9 +894,10 @@ function startStaticListeners(){
     renderBoard(); renderTecnicos(); renderVeiculos(); renderAuxiliares();
   });
 
-  // Tipos OS
-  unsubs.tipos=onSnapshot(query(collection(db,'tipos_os'),orderBy('ordem','asc')), snap=>{
-    S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // Tipos OS — sem orderBy; ordena em JS
+  unsubs.tipos=onSnapshot(collection(db,'tipos_os'), snap=>{
+    S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.ordem||99)-(b.ordem||99));
     if(!S.tipos.length) S.tipos=getDefaultTipos();
     populateSelects(); renderBoard(); renderTipos();
   });
@@ -913,17 +916,27 @@ function startStaticListeners(){
     renderOnlineUsers();
   });
 
-  // Auditoria (últimos 100)
-  unsubs.auditoria=onSnapshot(query(collection(db,'auditoria'),orderBy('ts','desc')), snap=>{
-    S.auditoria=snap.docs.slice(0,100).map(d=>({id:d.id,...d.data()}));
+  // Auditoria — sem orderBy para não exigir índice composto
+  unsubs.auditoria=onSnapshot(collection(db,'auditoria'), snap=>{
+    S.auditoria=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>{
+        const ta=a.ts?.seconds||0, tb=b.ts?.seconds||0;
+        return tb-ta;
+      }).slice(0,100);
     if(document.getElementById('screen-auditoria').classList.contains('on')) renderAuditoria();
   });
 
-  // Histórico de pendentes (últimos 200)
-  unsubs.pendentes=onSnapshot(query(collection(db,'historico_pendentes'),orderBy('ts','desc')), snap=>{
-    S.pendentes=snap.docs.slice(0,200).map(d=>({id:d.id,...d.data()}));
-    if(document.getElementById('screen-pendentes').classList.contains('on')) renderPendentes();
-  });
+  // Histórico de pendentes — sem orderBy (coleção pode não existir ainda)
+  try {
+    unsubs.pendentes=onSnapshot(collection(db,'historico_pendentes'), snap=>{
+      S.pendentes=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>{
+          const ta=a.ts?.seconds||0, tb=b.ts?.seconds||0;
+          return tb-ta;
+        }).slice(0,200);
+      if(document.getElementById('screen-pendentes').classList.contains('on')) renderPendentes();
+    }, err=>{ console.warn('historico_pendentes listener err:', err.code); S.pendentes=[]; });
+  } catch(e){ console.warn('historico_pendentes setup err:', e); S.pendentes=[]; }
 }
 
 function subscribeOrdens(data){
