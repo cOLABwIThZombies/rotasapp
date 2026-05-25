@@ -573,10 +573,14 @@ button,select,input,textarea{font-family:inherit}
       <div class="dfield"><span class="dlbl">FTC (Primeiro Toque Concluído)</span>
         <div class="radio-row"><div class="rbtn" id="rb-ftcn" onclick="setRb('ftc','nao')">Não</div><div class="rbtn warn" id="rb-ftcs" onclick="setRb('ftc','sim')">Sim</div></div>
       </div>
+      <div class="dfield"><span class="dlbl">Faturado</span>
+        <div class="radio-row"><div class="rbtn" id="rb-fat-n" onclick="setRb('faturado','nao')">Não</div><div class="rbtn ok" id="rb-fat-s" onclick="setRb('faturado','sim')">Sim</div></div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="dfield"><span class="dlbl">Valor cobrado (R$)</span><input class="dinp" type="number" id="drw-valor" step="0.01" min="0"></div>
         <div class="dfield"><span class="dlbl">Peças usadas</span><select class="dsel" id="drw-pecas"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
         <div class="dfield"><span class="dlbl">T.A.T</span><input class="dinp" id="drw-tat" type="text" placeholder="Ex: 2h30, 45min..." title="Tempo de atendimento técnico — preenchido pelo usuário"></div>
+        <div class="dfield"><span class="dlbl">KM percorrido</span><input class="dinp" id="drw-km" type="text" placeholder="Ex: 87 km"></div>
       </div>
       <div class="dfield"><span class="dlbl">Obs. pós-rota</span>
         <select class="dsel" id="drw-obs-sel"><option value="">Selecionar...</option><option>Reparo concluído</option><option>Retorno necessário</option><option>Aguardando faturamento</option><option>Peça solicitada</option><option>Cliente ausente</option><option>Reagendar</option><option>Aguardando aprovação</option><option>Sem conserto</option><option>Outro</option></select>
@@ -1108,7 +1112,7 @@ async function dropOnLane(techId){
 ═══════════════════════════════════════════════════════════ */
 function openDrawer(id){
   const o=ordensForDate(currentDate).find(x=>x.id===id); if(!o)return;
-  drawerOsId=id; drwState={status:o.status||'pendente',ftc:o.ftc||'nao'};
+  drawerOsId=id; drwState={status:o.status||'pendente',ftc:o.ftc||'nao',faturado:o.faturado||'nao'};
   const t=S.tecnicos.find(x=>x.id===o.techId);
   const ts=getTipo(o.tipo);
   document.getElementById('drw-num').textContent='#'+o.os;
@@ -1134,6 +1138,8 @@ function openDrawer(id){
   set('drw-valor',o.valor);
   document.getElementById('drw-pecas').value=o.pecas||'nao';
   const tatEl=document.getElementById('drw-tat');if(tatEl)tatEl.value=o.tat||'';
+  const kmEl=document.getElementById('drw-km');if(kmEl)kmEl.value=o.km||'';
+  setRb('faturado',drwState.faturado);
   set('drw-obs-sel',o.obs_sel);set('drw-nota',o.nota);
   setRb('status',drwState.status);setRb('ftc',drwState.ftc);
   // Histórico desta OS
@@ -1156,6 +1162,7 @@ function setRb(field,val){
   drwState[field]=val;
   if(field==='status'){document.getElementById('rb-pend').classList.toggle('on',val==='pendente');document.getElementById('rb-done').classList.toggle('on',val==='finalizado');}
   if(field==='ftc'){document.getElementById('rb-ftcn').classList.toggle('on',val==='nao');document.getElementById('rb-ftcs').classList.toggle('on',val==='sim');}
+  if(field==='faturado'){document.getElementById('rb-fat-n').classList.toggle('on',val==='nao');document.getElementById('rb-fat-s').classList.toggle('on',val==='sim');}
 }
 
 async function saveDrawer(){
@@ -1179,6 +1186,8 @@ async function saveDrawer(){
       valor:document.getElementById('drw-valor').value,
       pecas:document.getElementById('drw-pecas').value,
       tat:document.getElementById('drw-tat')?.value||'',
+      km:document.getElementById('drw-km')?.value||'',
+      faturado:drwState.faturado||'nao',
       obs_sel:document.getElementById('drw-obs-sel').value,
       nota:document.getElementById('drw-nota').value,
       pecas_lista:drwPecas.map(({id:_,...p})=>p),
@@ -1512,6 +1521,7 @@ function openRomaneio(tecId){
   const t=S.tecnicos.find(x=>x.id===tecId); if(!t)return;
   const aux=getAux(tecId);
   const os=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+  const ordensKm=os.map(o=>o.km).find(k=>k&&k.trim())||'';
   document.getElementById('rom-tec-title').textContent=t.nome;
   document.getElementById('rom-date-title').textContent=fmtShort(currentDate);
   const dtFmt=new Date(currentDate+'T12:00:00').toLocaleDateString('pt-BR');
@@ -1542,7 +1552,7 @@ function openRomaneio(tecId){
       <th>DATA</th>
       <td style="font-size:9.5px">${dtFmt}</td>
       <th>PREVISÃO DISTÂNCIA</th>
-      <td style="font-size:9px">____ km</td>
+      <td style="font-size:9.5px;font-weight:${ordensKm?"700":"400"}">${ordensKm||"____ km"}</td>
     </tr>
     <tr>
       <th>AUXILIAR</th>
