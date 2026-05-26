@@ -57,13 +57,18 @@ onAuthStateChanged(auth, async (fbUser) => {
       document.getElementById('pg-app').classList.add('on');
       window.bootApp();
     } catch(e) {
-      setLoginErr("Erro ao carregar perfil: " + e.message);
-      await signOut(auth);
+      const errEl=document.getElementById('login-err');
+      if(errEl){errEl.textContent='Erro ao carregar perfil: '+e.message;errEl.style.display='block';}
+      document.getElementById('pg-login').style.display='flex';
+      document.getElementById('app-loading').classList.remove('on');
+      signOut(auth);
     }
   } else {
     document.getElementById('pg-login').style.display = 'flex';
     document.getElementById('pg-app').classList.remove('on');
-    setLoginBtn(false);
+    document.getElementById('app-loading').classList.remove('on');
+    const btn=document.getElementById('btn-login');
+    if(btn){btn.disabled=false;btn.innerHTML='Entrar';}
   }
 });
 </script>
@@ -676,6 +681,10 @@ button,select,input,textarea{font-family:inherit}
     <div class="mhdr">
       <span class="mtitle">Romaneio CTDI — <span id="rom-tec-title"></span> — <span id="rom-date-title"></span></span>
       <div style="display:flex;gap:8px">
+        <button id="btn-calc-km" class="btn-exp" onclick="calcularKmRota()" style="background:var(--ow-bg);border-color:var(--ow);color:var(--ow-tx)">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M7 4v3l2 1.5"/></svg>
+          <span id="btn-calc-km-txt">Calcular KM da rota</span>
+        </button>
         <button class="btn-exp p" onclick="doPrintRom()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4V2h8v2M3 10H1V6h12v4h-2M3 10h8v4H3z"/></svg>Imprimir / PDF</button>
         <button class="mclose" onclick="closeModal('modal-rom')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
       </div>
@@ -1519,6 +1528,7 @@ function renderFinalizado(){
 ═══════════════════════════════════════════════════════════ */
 function openRomaneio(tecId){
   const t=S.tecnicos.find(x=>x.id===tecId); if(!t)return;
+  window._romTecId=tecId; // Guardar para calcularKmRota()
   const aux=getAux(tecId);
   const os=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
   const ordensKm=os.map(o=>o.km).find(k=>k&&k.trim())||'';
@@ -1624,7 +1634,136 @@ function openRomaneio(tecId){
 
   <div style="margin-top:4px;text-align:center;font-size:7.5px;color:#777">GestãoRotas · Gerado em ${new Date().toLocaleString('pt-BR')} · ${window._currentUser?.nome||'Sistema'}</div>`;
   openModal('modal-rom');
+  // Resetar botão de KM
+  const btnTxt=document.getElementById('btn-calc-km-txt');
+  if(btnTxt) btnTxt.textContent='Calcular KM da rota';
+  const btn=document.getElementById('btn-calc-km');
+  if(btn){btn.disabled=false;btn.style.opacity='1';}
 }
+/* ══ CÁLCULO AUTOMÁTICO DE KM — OpenRouteService ══
+   Rota: Base → OS1 → OS2 → ... → OSn → Base
+   API gratuita: 2000 req/dia — https://openrouteservice.org
+   Chave pública (sem custo, registre em openrouteservice.org/dev/#/login)
+   ══════════════════════════════════════════════════════════════════════ */
+const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjhlYWE4OWIzZDEzYzQ3YTI5YTMxZWRlNjdhZTYzNTI1IiwiaCI6Im11cm11cjY0In0=';
+
+const BASE_ENDERECO = 'Avenida Pedrosa de Moraes, 670, Pinheiros, São Paulo, SP, Brasil';
+
+async function calcularKmRota(){
+  if(!ORS_API_KEY){
+    toast('Configure a chave ORS_API_KEY no código para usar este recurso.','warn');
+    return;
+  }
+  const tecId=window._romTecId; if(!tecId)return;
+  const os=ordensForDate(currentDate)
+    .filter(o=>o.techId===tecId)
+    .sort((a,b)=>(a.posicao||0)-(b.posicao||0))
+    .filter(o=>o.endereco&&o.endereco.trim());
+
+  if(os.length===0){toast('Nenhuma OS com endereço preenchido nesta rota.','warn');return;}
+
+  const btn=document.getElementById('btn-calc-km');
+  const btnTxt=document.getElementById('btn-calc-km-txt');
+  btn.disabled=true; btn.style.opacity='0.6';
+  btnTxt.textContent='Calculando...';
+
+  try{
+    // ── Passo 1: Geocoding dos endereços das OS ───────────────────────
+    const geocode=async(addr)=>{
+      // Limpa o endereço — remove campos extras como "Nome — Rua — Bairro — CEP"
+      // e usa só a parte de rua/número
+      const limpo=addr.split('—')[0].trim();
+      const query=limpo+', São Paulo, SP';
+      const url='https://api.openrouteservice.org/geocode/search?'+
+        new URLSearchParams({
+          api_key:ORS_API_KEY,
+          text:query,
+          size:1,
+          'boundary.country':'BR',
+          'focus.point.lon':'-46.6853',  // foco em SP para melhorar precisão
+          'focus.point.lat':'-23.5629',
+        });
+      const r=await fetch(url);
+      if(!r.ok) throw new Error('Geocoding HTTP '+r.status);
+      const d=await r.json();
+      const feat=d.features?.[0];
+      if(!feat) throw new Error('Endereço não encontrado: '+limpo);
+      return feat.geometry.coordinates; // [lng, lat]
+    };
+
+    // Base: Av. Pedrosa de Moraes, 670 — coordenadas fixas (mais confiável)
+    const BASE_COORDS=[-46.6853,-23.5629]; // [lng, lat] — Pinheiros, SP
+
+    btnTxt.textContent='Geocodificando '+os.length+' endereço(s)...';
+
+    const coords=[BASE_COORDS];
+    for(let i=0;i<os.length;i++){
+      btnTxt.textContent='Geocodificando '+(i+1)+'/'+os.length+'...';
+      const coord=await geocode(os[i].endereco);
+      coords.push(coord);
+      if(i<os.length-1) await new Promise(r=>setTimeout(r,300)); // rate limit
+    }
+    // Volta para a base
+    coords.push(BASE_COORDS);
+
+    // ── Passo 2: Directions API ───────────────────────────────────────
+    btnTxt.textContent='Calculando rota...';
+    const resp=await fetch('https://api.openrouteservice.org/v2/directions/driving-car',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+ORS_API_KEY,
+      },
+      body:JSON.stringify({coordinates:coords,units:'km',instructions:false}),
+    });
+    if(!resp.ok){
+      const errData=await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message||'Directions HTTP '+resp.status);
+    }
+    const data=await resp.json();
+    if(data.error) throw new Error(data.error.message||'Erro na API de rotas');
+
+    const km=data.routes?.[0]?.summary?.distance;
+    if(!km&&km!==0) throw new Error('Distância não retornada pela API');
+
+    const kmArredondado=Math.ceil(km); // arredondar para cima por segurança
+    const durSec=data.routes?.[0]?.summary?.duration||0;
+    const durHoras=Math.floor(durSec/3600);
+    const durMin=Math.floor((durSec%3600)/60);
+    const durStr=durHoras>0?`${durHoras}h${String(durMin).padStart(2,'0')}min`:`${durMin}min`;
+
+    // ── Passo 3: Atualizar romaneio ───────────────────────────────────
+    const romContent=document.getElementById('rom-content');
+    if(romContent){
+      romContent.innerHTML=romContent.innerHTML
+        .replace(/____ km/g, kmArredondado+' km')
+        .replace(/____ h/g, durStr);
+    }
+
+    btnTxt.textContent='✓ '+kmArredondado+' km calculados';
+    btn.style.background='var(--ok-bg)';
+    btn.style.borderColor='var(--ok)';
+    btn.style.color='var(--ok-tx)';
+    toast('Rota: '+kmArredondado+' km · ~'+durStr+' · '+os.length+' parada(s)','ok');
+
+  }catch(e){
+    btnTxt.textContent='Erro — tentar novamente';
+    btn.disabled=false; btn.style.opacity='1';
+    toast('Erro ao calcular: '+e.message,'err');
+    console.error('ORS error:',e);
+  }
+}
+    const resp=await fetch('https://api.openrouteservice.org/v2/directions/driving-car',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':ORS_API_KEY},
+      body:JSON.stringify({coordinates:coords,units:'km',instructions:false}),
+    });
+    const data=await resp.json();
+    if(data.error) throw new Error(data.error.message||'Erro na API de rotas');
+
+    const km=data.routes?.[0]?.summary?.distance;
+    if(!km) throw new Error('Distância não retornada pela API');
+
 function doPrintRom(){
   const content=document.getElementById('rom-content').innerHTML;
   const win=window.open('','_blank');
