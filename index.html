@@ -57,18 +57,13 @@ onAuthStateChanged(auth, async (fbUser) => {
       document.getElementById('pg-app').classList.add('on');
       window.bootApp();
     } catch(e) {
-      const errEl=document.getElementById('login-err');
-      if(errEl){errEl.textContent='Erro ao carregar perfil: '+e.message;errEl.style.display='block';}
-      document.getElementById('pg-login').style.display='flex';
-      document.getElementById('app-loading').classList.remove('on');
-      signOut(auth);
+      setLoginErr("Erro ao carregar perfil: " + e.message);
+      await signOut(auth);
     }
   } else {
     document.getElementById('pg-login').style.display = 'flex';
     document.getElementById('pg-app').classList.remove('on');
-    document.getElementById('app-loading').classList.remove('on');
-    const btn=document.getElementById('btn-login');
-    if(btn){btn.disabled=false;btn.innerHTML='Entrar';}
+    setLoginBtn(false);
   }
 });
 </script>
