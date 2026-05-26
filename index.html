@@ -1307,49 +1307,76 @@ async function buscarHistoricoOS(osNum){
   const detalhe=document.getElementById('m-os-hint-detalhe');
   if(hint) hint.style.display='none';
   try{
-    // Buscar em todas as subcoleções rotas/*/ordens
-    const snap=await getFB().getDocs(
-      getFB().query(
-        collectionGroup(getDB(),'ordens'),
-        getFB().orderBy('createdAt','desc')
-      )
-    );
-    const docs=snap.docs.filter(d=>String(d.data().os)===String(osNum));
-    if(!docs.length) return;
+    // 1. Verifica cache local de TODAS as datas já carregadas
+    const todasLocais=Object.values(S.ordens).flat();
+    const local=todasLocais.find(o=>String(o.os)===osNum);
+    if(local){ _preencherFormOS(local); _mostrarHint(local); return; }
 
-    // Pegar o mais recente
-    const u=docs[0].data();
-
-    // Preencher campos
-    const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined&&val!==null&&val!=='')el.value=val;};
-    set('m-tipo',       u.tipo);
-    set('m-periodo',    u.periodo);
-    set('m-modelo',     u.modelo);
-    set('m-defeito',    u.defeito);
-    set('m-solucao',    u.solucao);
-    set('m-bairro',     u.bairro);
-    set('m-cep',        u.cep);
-    set('m-prio',       u.prio);
-    set('m-tel',        u.tel);
-    set('m-endereco',   u.endereco);
-    set('m-complemento',u.complemento);
-    set('m-obs',        u.obs);
-    // Peças: restaurar lista se havia peças na última vez
-    if((u.pecas_lista||[]).length>0){
-      mosPecas=u.pecas_lista.map(p=>({...p,id:Date.now()+Math.random()}));
-      mosPecasRender();
+    // 2. Busca no Firestore: ±45 dias a partir de hoje
+    const hoje=new Date();
+    // Gerar lista de datas: hoje, -1, +1, -2, +2... para priorizar mais próximas
+    const datas=[];
+    for(let i=0;i<=45;i++){
+      // Dias anteriores
+      const dp=new Date(hoje); dp.setDate(hoje.getDate()-i);
+      datas.push(`${dp.getFullYear()}-${String(dp.getMonth()+1).padStart(2,'0')}-${String(dp.getDate()).padStart(2,'0')}`);
+      // Dias futuros (exceto o dia 0 que já foi adicionado)
+      if(i>0){
+        const df=new Date(hoje); df.setDate(hoje.getDate()+i);
+        datas.push(`${df.getFullYear()}-${String(df.getMonth()+1).padStart(2,'0')}-${String(df.getDate()).padStart(2,'0')}`);
+      }
     }
 
-    // Mostrar hint
-    const tec=S.tecnicos.find(t=>t.id===u.techId);
-    if(detalhe) detalhe.textContent=
-      'Última vez: '+(u.data||'—')+' · '+(tec?.nome.split(' ')[0]||'—')+' · '+(u.bairro||'—');
-    if(hint) hint.style.display='block';
-    setTimeout(()=>{if(hint)hint.style.display='none';},6000);
+    for(const ds of datas){
+      try{
+        const snap=await getFB().getDocs(
+          getFB().collection(getDB(),`rotas/${ds}/ordens`)
+        );
+        // Filtrar documentos válidos (ignorar "fantasmas") e pelo número de OS
+        const doc=snap.docs.find(d=>d.exists&&String(d.data().os)===osNum);
+        if(doc){
+          const u={...doc.data(), data:ds};
+          _preencherFormOS(u);
+          _mostrarHint(u);
+          return;
+        }
+      }catch(e){ /* data sem subcoleção — ignorar */ }
+    }
+    // Não encontrou em nenhuma data
   }catch(e){
     console.warn('buscarHistoricoOS err:',e);
   }
 }
+
+function _preencherFormOS(u){
+  const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined&&val!==null&&val!=='')el.value=val;};
+  set('m-tipo',       u.tipo);
+  set('m-periodo',    u.periodo);
+  set('m-modelo',     u.modelo);
+  set('m-defeito',    u.defeito);
+  set('m-solucao',    u.solucao);
+  set('m-bairro',     u.bairro);
+  set('m-cep',        u.cep);
+  set('m-prio',       u.prio);
+  set('m-tel',        u.tel);
+  set('m-endereco',   u.endereco);
+  set('m-complemento',u.complemento);
+  set('m-obs',        u.obs);
+  if((u.pecas_lista||[]).length>0){
+    mosPecas=u.pecas_lista.map(p=>({...p,id:Date.now()+Math.random()}));
+    mosPecasRender();
+  }
+}
+
+function _mostrarHint(u){
+  const hint   =document.getElementById('m-os-hint');
+  const detalhe=document.getElementById('m-os-hint-detalhe');
+  const tec=S.tecnicos.find(t=>t.id===u.techId);
+  if(detalhe) detalhe.textContent='Última vez: '+(u.data||'—')+' · '+(tec?.nome.split(' ')[0]||'—')+' · '+(u.bairro||'—');
+  if(hint) hint.style.display='block';
+  setTimeout(()=>{if(hint)hint.style.display='none';},6000);
+}
+
 window.buscarHistoricoOS=buscarHistoricoOS;
 
 function openModalOS(){
