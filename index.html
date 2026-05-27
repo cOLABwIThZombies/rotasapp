@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GestãoRotas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script type="module">
 import { initializeApp }                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut,
@@ -371,6 +372,27 @@ button,select,input,textarea{font-family:inherit}
 </head>
 <body>
 
+<script>
+/* ── BLOQUEIO DE INSPEÇÃO ── */
+(function(){
+  // Bloquear F12 e atalhos DevTools
+  document.addEventListener('keydown',function(e){
+    if(e.key==='F12'){e.preventDefault();return false;}
+    if(e.ctrlKey&&e.shiftKey&&['I','J','C','K'].includes(e.key.toUpperCase())){e.preventDefault();return false;}
+    if(e.ctrlKey&&e.key.toUpperCase()==='U'){e.preventDefault();return false;}
+  },true);
+
+  // Bloquear botão direito
+  document.addEventListener('contextmenu',function(e){e.preventDefault();return false;},true);
+
+  // Detectar DevTools pela diferença de tamanho da janela
+  setInterval(function(){
+    if((window.outerWidth-window.innerWidth>160)||(window.outerHeight-window.innerHeight>160)){
+      document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;font-size:18px;color:#6b6960;background:#f5f4f0">Acesso não permitido.</div>';
+    }
+  },1500);
+})();
+</script>
 <div id="app-loading"><div class="big-spin"></div><span style="font-size:13px;color:var(--tx2)">Carregando...</span></div>
 
 <!-- LOGIN -->
@@ -444,7 +466,7 @@ button,select,input,textarea{font-family:inherit}
 
     <!-- DASHBOARD -->
     <div id="screen-dashboard" class="screen">
-      <div class="hdr"><span class="htitle">Dashboard</span><div class="hsp"></div><span class="sync-badge"><div class="sync-dot"></div>Tempo real</span></div>
+      <div class="hdr"><span class="htitle">Dashboard</span><div class="hsp"></div><span class="sync-badge"><div class="sync-dot"></div>Tempo real</span><button class="btn-exp" onclick="capturarTela('dash-content','dashboard')" title="Salvar como imagem" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;cursor:pointer;color:var(--tx2);transition:all .12s"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2"/><path d="M4 3V2h6v1"/></svg>Capturar</button></div>
       <div class="rel-wrap" id="dash-content"></div>
     </div>
 
@@ -490,6 +512,7 @@ button,select,input,textarea{font-family:inherit}
     <div id="screen-relatorios" class="screen">
       <div class="hdr"><span class="htitle">Relatórios</span><div class="hsp"></div>
         <select class="inp nm" id="rel-month" style="width:160px" onchange="renderRelatorios()"></select>
+        <button class="btn-exp" onclick="capturarTela('rel-content','relatorio')" title="Salvar como imagem" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;cursor:pointer;color:var(--tx2);transition:all .12s"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2"/><path d="M4 3V2h6v1"/></svg>Capturar</button>
       </div>
       <div class="rel-wrap" id="rel-content"></div>
     </div>
@@ -2432,6 +2455,46 @@ function toast(msg,type=''){
   clearTimeout(tTimer);
   tTimer=setTimeout(()=>t.classList.remove('on'),3500);
 }
+
+/* ── CAPTURA DE TELA ── */
+window.capturarTela = async function(elementId, nome){
+  const el = document.getElementById(elementId);
+  if(!el){ toast('Elemento não encontrado','err'); return; }
+
+  // Feedback visual
+  toast('Gerando imagem...','ok');
+
+  try{
+    // Scroll ao topo do elemento para capturar tudo
+    el.scrollTop = 0;
+
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#f5f4f0',
+      scale: 2,           // alta resolução
+      useCORS: true,
+      allowTaint: true,
+      scrollY: -window.scrollY,
+      windowWidth: document.documentElement.scrollWidth,
+      logging: false,
+    });
+
+    // Gerar nome do arquivo com data
+    const hoje = new Date();
+    const dtStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+    const nomeArq = `gestaorotas-${nome}-${dtStr}.png`;
+
+    // Download automático
+    const link = document.createElement('a');
+    link.download = nomeArq;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    toast('Imagem salva: ' + nomeArq, 'ok');
+  } catch(e){
+    toast('Erro ao capturar: ' + e.message, 'err');
+    console.error('capturarTela err:', e);
+  }
+};
 
 /* ── ESC ── */
 document.addEventListener('keydown',e=>{
