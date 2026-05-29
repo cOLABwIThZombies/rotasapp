@@ -355,6 +355,19 @@ button,select,input,textarea{font-family:inherit}
 .btn-rm-part:hover{background:var(--err-bg);border-color:#fca5a5;color:var(--err)}
 .parts-empty{padding:28px;text-align:center;color:var(--tx3);font-size:12.5px}
 .parts-summary{display:none;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--ok-bg);border-radius:var(--r);margin-top:8px;font-size:12px;color:var(--ok-tx);font-weight:500;border:1px solid #9FE1CB}
+/* ── MODAL ORDEM ATENDIMENTO ── */
+.ord-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);margin-bottom:6px;cursor:grab;transition:all .12s;user-select:none}
+.ord-item:hover{border-color:var(--brd2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.ord-item.dragging-ord{opacity:.4;border-style:dashed}
+.ord-item.drag-over-ord{border-color:var(--ow);background:var(--ow-bg)}
+.ord-num{width:24px;height:24px;border-radius:50%;background:var(--tx);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.ord-info{flex:1;min-width:0}
+.ord-os{font-family:"DM Mono",monospace;font-size:13px;font-weight:600}
+.ord-detalhe{font-size:11px;color:var(--tx2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ord-btns{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+.ord-btn{width:22px;height:22px;border:1px solid var(--brd);border-radius:4px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--tx2);font-size:10px;transition:all .12s}
+.ord-btn:hover{background:var(--bg);border-color:var(--brd2)}
+.ord-btn:disabled{opacity:.3;cursor:not-allowed}
 .rom-parts-tbl{width:100%;border-collapse:collapse;border:1px solid #000}
 .rom-parts-tbl td,.rom-parts-tbl th{border:1px solid #000;padding:3px 5px;font-size:8.5px;vertical-align:top}
 .rom-parts-tbl th{background:#d0d0d0;font-weight:700;font-size:8px;text-transform:uppercase;text-align:left}
@@ -701,12 +714,35 @@ button,select,input,textarea{font-family:inherit}
   </div>
 </div>
 
+<!-- MODAL ORDEM ATENDIMENTO -->
+<div class="moverlay" id="modal-ordem" style="z-index:500" onclick="if(event.target===this)closeModal('modal-ordem')">
+  <div class="modal" style="width:480px" onclick="event.stopPropagation()">
+    <div class="mhdr">
+      <div>
+        <span class="mtitle">Ordem de atendimento</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:3px">Arraste ou use ↑↓ para reordenar as OS</div>
+      </div>
+      <button class="mclose" onclick="closeModal('modal-ordem')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <div class="mbody s1" id="ordem-list" style="max-height:420px;overflow-y:auto;padding:14px 18px"></div>
+    <div class="mfoot">
+      <button class="btn-ghost" onclick="closeModal('modal-ordem')">Cancelar</button>
+      <button class="btn-ghost" onclick="resetarOrdem()" style="color:var(--tx2)">↺ Resetar</button>
+      <button class="btn-save" onclick="aplicarOrdem()">Aplicar e ver romaneio</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ROMANEIO -->
-<div class="moverlay" id="modal-rom">
+<div class="moverlay" id="modal-rom" onclick="if(event.target===this&&!document.getElementById('modal-ordem').classList.contains('on'))closeModal('modal-rom')">
   <div class="modal xl">
     <div class="mhdr">
       <span class="mtitle">Romaneio CTDI — <span id="rom-tec-title"></span> — <span id="rom-date-title"></span></span>
       <div style="display:flex;gap:8px">
+        <button class="btn-exp" onclick="abrirModalOrdem();event.stopPropagation()" style="background:var(--surf2);border-color:var(--brd2);color:var(--tx2)">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h10M2 7h7M2 10h4"/><path d="M11 7v5M9 10l2 2 2-2"/></svg>
+          Ordem de atendimento
+        </button>
         <button id="btn-calc-km" class="btn-exp" onclick="calcularKmRota()" style="background:var(--ow-bg);border-color:var(--ow);color:var(--ow-tx)">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M7 4v3l2 1.5"/></svg>
           <span id="btn-calc-km-txt">Calcular KM da rota</span>
@@ -1641,11 +1677,101 @@ function openRomaneio(tecId){
   window._romTecId=tecId; // Guardar para calcularKmRota()
   const aux=getAux(tecId);
   const os=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+  window._romOrdens=[...os]; // cópia editável da ordem
   const ordensKm=os.map(o=>o.km).find(k=>k&&k.trim())||'';
   document.getElementById('rom-tec-title').textContent=t.nome;
   document.getElementById('rom-date-title').textContent=fmtShort(currentDate);
   const dtFmt=new Date(currentDate+'T12:00:00').toLocaleDateString('pt-BR');
   const auxNome=aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?aux.nome:'—';
+  openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os);
+  openModal('modal-rom');
+  // Resetar botão de KM
+  const btnTxt=document.getElementById('btn-calc-km-txt');
+  if(btnTxt) btnTxt.textContent='Calcular KM da rota';
+  const btn2=document.getElementById('btn-calc-km');
+  if(btn2){btn2.disabled=false;btn2.style.opacity='1';}
+}
+
+/* ══ ORDEM DE ATENDIMENTO ══ */
+let _dragSrcIdx = null;
+
+function abrirModalOrdem(){
+  renderOrdemList();
+  openModal('modal-ordem');
+}
+window.abrirModalOrdem=abrirModalOrdem;
+
+function renderOrdemList(){
+  const list=document.getElementById('ordem-list');
+  const ordens=window._romOrdens||[];
+  if(!ordens.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--tx3);font-size:13px">Nenhuma OS nesta rota.</div>';return;}
+  list.innerHTML=ordens.map((o,i)=>{
+    const ts=getTipo(o.tipo);
+    return '<div class="ord-item" draggable="true"'
+      +' ondragstart="_dragSrcIdx='+i+';this.classList.add(\'dragging-ord\')"'
+      +' ondragend="this.classList.remove(\'dragging-ord\');document.querySelectorAll(\'.ord-item\').forEach(x=>x.classList.remove(\'drag-over-ord\'))"'
+      +' ondragover="event.preventDefault();document.querySelectorAll(\'.ord-item\').forEach(x=>x.classList.remove(\'drag-over-ord\'));this.classList.add(\'drag-over-ord\')"'
+      +' ondrop="event.preventDefault();this.classList.remove(\'drag-over-ord\');moverOrdemDrop('+i+')">'
+      +'<div class="ord-num">'+(i+1)+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">'
+        +'<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;background:'+ts.bg+';color:'+ts.color+';white-space:nowrap">'+o.tipo+'</span>'
+        +'<div class="ord-info">'
+          +'<div class="ord-os">#'+o.os+'</div>'
+          +'<div class="ord-detalhe">'+(o.modelo||'—')+' · '+(o.endereco||o.bairro||'—')+'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="ord-btns">'
+        +'<button class="ord-btn" onclick="moverOrdemBtn('+i+','+(i-1)+')" '+(i===0?'disabled':'')+' title="Subir">↑</button>'
+        +'<button class="ord-btn" onclick="moverOrdemBtn('+i+','+(i+1)+')" '+(i===ordens.length-1?'disabled':'')+' title="Descer">↓</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+window.renderOrdemList=renderOrdemList;
+
+function moverOrdemBtn(de, para){
+  if(para<0||para>=(window._romOrdens||[]).length) return;
+  const arr=[...(window._romOrdens||[])];
+  const [item]=arr.splice(de,1); arr.splice(para,0,item);
+  window._romOrdens=arr; renderOrdemList();
+}
+window.moverOrdemBtn=moverOrdemBtn;
+
+function moverOrdemDrop(destIdx){
+  if(_dragSrcIdx===null||_dragSrcIdx===destIdx){_dragSrcIdx=null;return;}
+  const arr=[...(window._romOrdens||[])];
+  const [item]=arr.splice(_dragSrcIdx,1); arr.splice(destIdx,0,item);
+  window._romOrdens=arr; _dragSrcIdx=null; renderOrdemList();
+}
+window.moverOrdemDrop=moverOrdemDrop;
+
+window.resetarOrdem=function(){
+  const tecId=window._romTecId; if(!tecId)return;
+  window._romOrdens=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+  renderOrdemList(); toast('Ordem resetada para a original');
+};
+
+window.aplicarOrdem=function(){
+  closeModal('modal-ordem');
+  const tecId=window._romTecId; if(!tecId)return;
+  const t=S.tecnicos.find(x=>x.id===tecId); if(!t)return;
+  const aux=getAux(tecId);
+  // _romOrdens já tem a ordem editada — só re-renderizar o conteúdo
+  const os=window._romOrdens||[];
+  const ordensKm=os.map(o=>o.km).find(k=>k&&k.trim())||'';
+  const dtFmt=new Date(currentDate+'T12:00:00').toLocaleDateString('pt-BR');
+  const auxNome=aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?aux.nome:'—';
+  openRomaneioComOrdens(t,aux,auxNome,dtFmt,ordensKm,os);
+  // Scroll ao topo do romaneio para ver o resultado
+  setTimeout(()=>{
+    const rc=document.getElementById('rom-content');
+    if(rc) rc.scrollTop=0;
+    document.querySelector('.rom-preview-body')?.scrollTo(0,0);
+  },50);
+  toast('Ordem aplicada ao romaneio','ok');
+};
+
+function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
   document.getElementById('rom-content').innerHTML=`
   <!-- CABEÇALHO -->
   <table class="rom-tbl" style="margin-bottom:0">
@@ -1743,12 +1869,6 @@ function openRomaneio(tecId){
   </table>`:''}
 
   <div style="margin-top:4px;text-align:center;font-size:7.5px;color:#777">GestãoRotas · Gerado em ${new Date().toLocaleString('pt-BR')} · ${window._currentUser?.nome||'Sistema'}</div>`;
-  openModal('modal-rom');
-  // Resetar botão de KM
-  const btnTxt=document.getElementById('btn-calc-km-txt');
-  if(btnTxt) btnTxt.textContent='Calcular KM da rota';
-  const btn=document.getElementById('btn-calc-km');
-  if(btn){btn.disabled=false;btn.style.opacity='1';}
 }
 /* ══ CÁLCULO AUTOMÁTICO DE KM — OpenRouteService ══
    Rota: Base → OS1 → OS2 → ... → OSn → Base
@@ -1780,10 +1900,16 @@ async function calcularKmRota(){
   try{
     // ── Passo 1: Geocoding dos endereços das OS ───────────────────────
     const geocode=async(addr)=>{
-      // Limpa o endereço — remove campos extras como "Nome — Rua — Bairro — CEP"
-      // e usa só a parte de rua/número
-      const limpo=addr.split('—')[0].trim();
-      const query=limpo+', São Paulo, SP';
+      // Endereço vem como "Nome Cliente — Rua X, 123 — Bairro — CEP: 00000"
+      // Pegar a parte depois do primeiro "—" que é a rua/número
+      // Se não tiver "—", usar o endereço inteiro
+      const partes = addr.split('—').map(p=>p.trim()).filter(p=>p.length>3);
+      // Filtrar partes que parecem endereço (contém número ou "Rua","Av","Al","R.")
+      const reEndereco = /\b(rua|r\.|av|avenida|al\.|alameda|est\.|estrada|travessa|tv\.|pça|praça|\d{2,})\b/i;
+      const partEndereco = partes.find(p=>reEndereco.test(p)) || partes[1] || partes[0];
+      // Remover CEP e texto extra, manter só rua + número + bairro
+      const semCep = partEndereco.replace(/CEP:?\s*[\d\-]+/gi,'').replace(/\s+/g,' ').trim();
+      const query = semCep + ', São Paulo, SP';
       const url='https://api.openrouteservice.org/geocode/search?'+
         new URLSearchParams({
           api_key:ORS_API_KEY,
@@ -1796,8 +1922,33 @@ async function calcularKmRota(){
       const r=await fetch(url);
       if(!r.ok) throw new Error('Geocoding HTTP '+r.status);
       const d=await r.json();
-      const feat=d.features?.[0];
-      if(!feat) throw new Error('Endereço não encontrado: '+limpo);
+      let feat=d.features?.[0];
+
+      // Fallback 1: tentar só com CEP se disponível
+      if(!feat){
+        const cepMatch=addr.match(/\b(\d{5}-?\d{3})\b/);
+        if(cepMatch){
+          const urlCep='https://api.openrouteservice.org/geocode/search?'+
+            new URLSearchParams({api_key:ORS_API_KEY,text:cepMatch[1]+', São Paulo, SP',size:1,'boundary.country':'BR'});
+          const rCep=await fetch(urlCep);
+          const dCep=await rCep.json();
+          feat=dCep.features?.[0];
+        }
+      }
+
+      // Fallback 2: tentar só com bairro + SP
+      if(!feat){
+        const bairroMatch=addr.match(/—\s*([^—]+?)\s*(?:—|CEP|$)/i);
+        if(bairroMatch&&bairroMatch[1].length>3){
+          const urlB='https://api.openrouteservice.org/geocode/search?'+
+            new URLSearchParams({api_key:ORS_API_KEY,text:bairroMatch[1].trim()+', São Paulo, SP',size:1,'boundary.country':'BR','focus.point.lon':'-46.6853','focus.point.lat':'-23.5629'});
+          const rB=await fetch(urlB);
+          const dB=await rB.json();
+          feat=dB.features?.[0];
+        }
+      }
+
+      if(!feat) throw new Error('Endereço não encontrado: '+semCep);
       return feat.geometry.coordinates; // [lng, lat]
     };
 
@@ -1809,7 +1960,10 @@ async function calcularKmRota(){
     const coords=[BASE_COORDS];
     for(let i=0;i<os.length;i++){
       btnTxt.textContent='Geocodificando '+(i+1)+'/'+os.length+'...';
-      const coord=await geocode(os[i].endereco);
+      // Montar endereço completo com fallbacks: endereco + bairro + cep
+      const o = os[i];
+      const endCompleto = [o.endereco, o.bairro, o.cep ? 'CEP '+o.cep : ''].filter(Boolean).join(' — ');
+      const coord=await geocode(endCompleto);
       coords.push(coord);
       if(i<os.length-1) await new Promise(r=>setTimeout(r,300)); // rate limit
     }
