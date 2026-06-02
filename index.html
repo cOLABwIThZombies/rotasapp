@@ -587,6 +587,7 @@ button,select,input,textarea{font-family:inherit}
       <div class="dsect">Editar dados</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="dfield"><span class="dlbl">Modelo</span><input class="dinp" id="de-modelo"></div>
+        <div class="dfield"><span class="dlbl">Serial</span><input class="dinp" id="de-serial" placeholder="N/S do produto"></div>
         <div class="dfield"><span class="dlbl">Defeito</span><input class="dinp" id="de-defeito"></div>
         <div class="dfield"><span class="dlbl">Solução</span><input class="dinp" id="de-solucao"></div>
         <div class="dfield"><span class="dlbl">Bairro</span><input class="dinp" id="de-bairro"></div>
@@ -663,6 +664,7 @@ button,select,input,textarea{font-family:inherit}
         <div><label class="lbl">Tipo de OS</label><select class="inp nm" id="m-tipo"></select></div>
         <div><label class="lbl">Período</label><select class="inp nm" id="m-periodo"><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
         <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
+        <div><label class="lbl">Serial</label><input class="inp nm" id="m-serial" placeholder="N/S do produto"></div>
         <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
         <div><label class="lbl">Possível solução</label><input class="inp nm" id="m-solucao"></div>
         <div><label class="lbl">Bairro</label><input class="inp nm" id="m-bairro"></div>
@@ -747,6 +749,12 @@ button,select,input,textarea{font-family:inherit}
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M7 4v3l2 1.5"/></svg>
           <span id="btn-calc-km-txt">Calcular KM da rota</span>
         </button>
+        <div style="display:flex;align-items:center;gap:5px;border:1px solid var(--brd);border-radius:6px;padding:3px 8px;background:var(--surf)">
+          <span style="font-size:11px;color:var(--tx2)">Fonte:</span>
+          <button onclick="ajustarFonteRom(-1)" style="width:22px;height:22px;border:1px solid var(--brd);border-radius:4px;background:var(--surf);cursor:pointer;font-size:12px;color:var(--tx2)">−</button>
+          <span id="rom-fonte-val" style="font-size:11px;font-weight:600;min-width:24px;text-align:center">8</span>
+          <button onclick="ajustarFonteRom(1)" style="width:22px;height:22px;border:1px solid var(--brd);border-radius:4px;background:var(--surf);cursor:pointer;font-size:12px;color:var(--tx2)">+</button>
+        </div>
         <button class="btn-exp p" onclick="doPrintRom()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4V2h8v2M3 10H1V6h12v4h-2M3 10h8v4H3z"/></svg>Imprimir / PDF</button>
         <button class="mclose" onclick="closeModal('modal-rom')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
       </div>
@@ -1197,7 +1205,7 @@ function openDrawer(id){
     {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':'<span class="pill pill-gray">Pendente</span>'},
   ].map(r=>`<div class="di"><div class="di-k">${r.k}</div><div class="di-v">${r.v}</div></div>`).join('');
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
-  set('de-modelo',o.modelo);set('de-defeito',o.defeito);set('de-solucao',o.solucao);
+  set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
   set('de-tel',o.tel);set('de-endereco',o.endereco);set('de-complemento',o.complemento);
   // Carregar peças da OS
@@ -1242,6 +1250,7 @@ async function saveDrawer(){
     const wasFinished=o.status==='finalizado';
     const updates={
       modelo:document.getElementById('de-modelo').value,
+      serial:document.getElementById('de-serial')?.value||'',
       defeito:document.getElementById('de-defeito').value,
       solucao:document.getElementById('de-solucao').value,
       bairro:document.getElementById('de-bairro').value,
@@ -1405,6 +1414,7 @@ function _preencherFormOS(u){
   set('m-tipo',       u.tipo);
   set('m-periodo',    u.periodo);
   set('m-modelo',     u.modelo);
+  set('m-serial',     u.serial||'');
   set('m-defeito',    u.defeito);
   set('m-solucao',    u.solucao);
   set('m-bairro',     u.bairro);
@@ -1498,6 +1508,7 @@ async function saveOS(){
     const data={
       os:osNum, tipo:document.getElementById('m-tipo').value,
       modelo:document.getElementById('m-modelo').value||'',
+      serial:document.getElementById('m-serial').value||'',
       defeito:document.getElementById('m-defeito').value||'',
       solucao:document.getElementById('m-solucao').value||'',
       periodo:document.getElementById('m-periodo').value,
@@ -1519,7 +1530,7 @@ async function saveOS(){
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
       closeModal('modal-os');
       mosPecas=[];
-      ['m-os','m-modelo','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      ['m-os','m-modelo','m-serial','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
       toast('OS '+osNum+' criada','ok');
     }catch(e){toast('Erro ao criar OS: '+e.message,'err');}
   };
@@ -1811,11 +1822,13 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
   <!-- ORDENS DE SERVIÇO -->
   <table class="rom-tbl" style="margin-top:0">
     <thead>
-      <tr><td colspan="8" style="font-weight:700;font-size:9px;text-align:center;background:#b0b0b0;padding:4px;letter-spacing:.5px">ORDEM DE SERVIÇOS</td></tr>
+      <tr><td colspan="10" style="font-weight:700;font-size:9px;text-align:center;background:#b0b0b0;padding:4px;letter-spacing:.5px">ORDEM DE SERVIÇOS</td></tr>
       <tr>
         <th style="width:11%">ORDEM DE SERVIÇO</th>
         <th style="width:13%">MODELO</th>
-        <th style="width:22%">NOME E ENDEREÇO</th>
+        <th style="width:11%">NOME</th>
+        <th style="width:18%">ENDEREÇO</th>
+        <th style="width:6%">SERIAL</th>
         <th style="width:10%">TELEFONE</th>
         <th style="width:14%">DEFEITO RELATADO</th>
         <th style="width:12%">OBSERVAÇÃO</th>
@@ -1834,7 +1847,9 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
             <div style="font-size:7.5px;color:#555;margin-top:1px">${o.periodo==='manha'?'Manhã':'Tarde'} · ${(o.prio||'').toUpperCase()}-${i+1}</div>
           </td>
           <td style="font-size:8.5px">${o.modelo||'—'}</td>
-          <td style="font-size:8px">${fmtEndereco(o)}</td>
+          <td style="font-size:8px">${o.endereco?o.endereco.split('—')[0].trim():'—'}</td>
+          <td style="font-size:8px">${(()=>{const partes=(o.endereco||'').split('—').map(p=>p.trim()).filter(p=>p.length>1);const reEnd=/\b(rua|r\.|av|avenida|al|alameda|est|estrada|tv\.|\d{2,})/i;const rua=partes.find(p=>reEnd.test(p))||partes[1]||'';const bairro=o.bairro||'';const cep=o.cep?'CEP: '+o.cep:'';return [rua,bairro,cep].filter(Boolean).join(' · ')||'—';})()}</td>
+          <td style="font-size:8px;font-family:monospace;font-weight:600">${o.serial||''}</td>
           <td style="font-size:8.5px">${o.tel||'—'}</td>
           <td style="font-size:8px">${o.defeito||'—'}</td>
           <td style="font-size:8px">${o.obs||o.obs_sel||'—'}</td>
@@ -1875,6 +1890,26 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
    API gratuita: 2000 req/dia — https://openrouteservice.org
    Chave pública (sem custo, registre em openrouteservice.org/dev/#/login)
    ══════════════════════════════════════════════════════════════════════ */
+/* ── AJUSTE DE FONTE DO ROMANEIO ── */
+let _romFontSize = 8;
+window.ajustarFonteRom = function(delta){
+  _romFontSize = Math.min(13, Math.max(6, _romFontSize + delta));
+  const val = document.getElementById('rom-fonte-val');
+  if(val) val.textContent = _romFontSize;
+  const rc = document.getElementById('rom-content');
+  if(!rc) return;
+  rc.querySelectorAll('td, th').forEach(el => {
+    if(el.style.fontSize && el.style.fontSize.includes('px')){
+      el.style.fontSize = _romFontSize + 'px';
+    }
+  });
+  // Ajustar também elementos com font-size inline em divs filhos
+  rc.querySelectorAll('[style*="font-size"]').forEach(el => {
+    const cur = parseFloat(el.style.fontSize||'0');
+    if(cur > 0) el.style.fontSize = Math.max(5, cur + delta) + 'px';
+  });
+};
+
 const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjhlYWE4OWIzZDEzYzQ3YTI5YTMxZWRlNjdhZTYzNTI1IiwiaCI6Im11cm11cjY0In0=';
 
 const BASE_ENDERECO = 'Avenida Pedrosa de Moraes, 670, Pinheiros, São Paulo, SP, Brasil';
