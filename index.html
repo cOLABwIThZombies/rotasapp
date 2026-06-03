@@ -976,13 +976,30 @@ function startStaticListeners(){
 
 function subscribeOrdens(data){
   if(unsubs.ordens){unsubs.ordens();delete unsubs.ordens;}
-  const{onSnapshot,collection,query,orderBy}=getFB();
+  const{onSnapshot,collection,query,orderBy,updateDoc,doc}=getFB();
   unsubs.ordens=onSnapshot(
     query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')),
-    snap=>{
+    async snap=>{
       S.ordens[data]=snap.docs.map(d=>({id:d.id,data,...d.data()}));
+
+      // ── Auto-upgrade: OS em "pendente" que eram futuras e chegaram no dia de hoje
+      // Só roda para o dia atual, não para dias passados ou futuros
+      if(data===TODAY_STR){
+        const paraUpgrade=snap.docs.filter(d=>{
+          const o=d.data();
+          // Só promove se estava pendente (veio de rota futura) — não toca em finalizado
+          return o.status==='pendente';
+        });
+        for(const d of paraUpgrade){
+          try{
+            await updateDoc(doc(getDB(),`rotas/${data}/ordens`,d.id),{status:'em_progresso'});
+          }catch(e){ console.warn('auto-upgrade err:',e); }
+        }
+        // Se houve upgrades o snapshot vai disparar novamente com os dados corretos
+        if(paraUpgrade.length>0) return;
+      }
+
       renderBoard();
-      // Atualiza contador "OS hoje" na tabela de técnicos sempre que as ordens do dia mudam
       if(data===TODAY_STR) renderTecnicos();
       if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
       if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
@@ -1174,7 +1191,7 @@ function makeCard(o){
     </div>`:''}
     ${o.valor?('<div class="osc-val">'+fmtBRL(o.valor)+'</div>'):''}
     <div class="osc-foot">
-      <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.endereco||o.bairro||'—'}</div>
+      <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${[o.endereco,o.complemento].filter(Boolean).join(', ')||o.bairro||'—'}</div>
       <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':'otag-t'}">${o.periodo==='manha'?'Mnh':'Trd'}</span></div>
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
@@ -1878,7 +1895,7 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
           </td>
           <td style="font-size:8.5px">${o.modelo||'—'}</td>
           <td style="font-size:8px">${o.nome_cliente||o.endereco?.split('—')[0]?.trim()||'—'}</td>
-          <td style="font-size:8px">${(()=>{const partes=(o.endereco||'').split('—').map(p=>p.trim()).filter(p=>p.length>1);const reEnd=/\b(rua|r\.|av|avenida|al|alameda|est|estrada|tv\.|\d{2,})/i;const rua=partes.find(p=>reEnd.test(p))||partes[1]||'';const bairro=o.bairro||'';const cep=o.cep?'CEP: '+o.cep:'';return [rua,bairro,cep].filter(Boolean).join(' · ')||'—';})()}</td>
+          <td style="font-size:8px">${(()=>{const partes=(o.endereco||'').split('—').map(p=>p.trim()).filter(p=>p.length>1);const reEnd=/\b(rua|r\.|av|avenida|al|alameda|est|estrada|tv\.|\d{2,})/i;const rua=partes.find(p=>reEnd.test(p))||partes[1]||o.endereco||'';const compl=o.complemento||'';const bairro=o.bairro||'';const cep=o.cep?'CEP: '+o.cep:'';return [rua,compl,bairro,cep].filter(Boolean).join(' · ')||'—';})()}</td>
           <td style="font-size:8px;font-family:monospace;font-weight:600">${o.serial||''}</td>
           <td style="font-size:8.5px">${o.tel||'—'}</td>
           <td style="font-size:8px">${o.defeito||'—'}</td>
