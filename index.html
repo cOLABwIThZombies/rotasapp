@@ -287,7 +287,78 @@ button,select,input,textarea{font-family:inherit}
 .audit-item{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:10px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
 .audit-tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;white-space:nowrap}
 .audit-txt{font-size:12.5px;flex:1}.audit-meta{font-size:11px;color:var(--tx3);white-space:nowrap}
-/* ── DASHBOARD POWER BI ────────────────────────────────── */
+/* ── CALENDÁRIO ESTILO BOLSA ─────────────────────────── */
+.cal-mode-tabs{display:flex;border:1px solid var(--brd);border-radius:8px;overflow:hidden;background:var(--surf2)}
+.cal-mode-btn{padding:5px 14px;font-size:12px;font-weight:500;background:transparent;border:none;cursor:pointer;color:var(--tx3);transition:all .12s;border-right:1px solid var(--brd)}
+.cal-mode-btn:last-child{border-right:none}
+.cal-mode-btn.on{background:#1a1917;color:#fff}
+/* Ticker topo calendário */
+.cal-ticker{background:#0f0f0f;color:#fff;padding:0 16px;height:36px;display:flex;align-items:center;gap:14px;overflow:hidden;flex-shrink:0}
+.cal-tick-item{display:flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap;flex-shrink:0}
+.cal-tick-date{font-family:'DM Mono',monospace;font-size:10px;color:#888}
+.cal-tick-os{font-family:'DM Mono',monospace;font-weight:700;color:#fff}
+.cal-tick-count{font-size:9.5px;padding:1px 5px;border-radius:3px;font-weight:600}
+.cal-tick-up{background:#0d5e3f;color:#4ade80}
+.cal-tick-zero{background:#333;color:#888}
+.cal-tick-sep{color:#333;font-size:14px;flex-shrink:0}
+/* Nav comum */
+.cal-nav{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;flex-shrink:0}
+.cal-nav-btn{width:32px;height:32px;border:1px solid var(--brd);border-radius:8px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.cal-nav-btn:hover{background:var(--surf2);border-color:var(--brd2)}
+.cal-nav-title{font-size:18px;font-weight:700;flex:1;letter-spacing:-.4px}
+.cal-nav-sub{font-size:11px;color:var(--tx3);margin-left:8px;font-weight:400}
+.cal-today-btn{padding:4px 12px;font-size:11.5px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);cursor:pointer;color:var(--tx2);transition:all .12s}
+.cal-today-btn:hover{background:var(--surf2)}
+/* Grid modo mês */
+.cal-month-wrap{padding:0 16px 16px}
+.cal-week-headers{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-week-hd{font-size:10px;font-weight:700;color:var(--tx3);text-align:center;padding:3px 0;text-transform:uppercase;letter-spacing:.5px}
+.cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-cell{border:1px solid var(--brd);border-radius:8px;padding:7px 8px;min-height:72px;cursor:pointer;transition:all .12s;position:relative;overflow:hidden;background:var(--surf)}
+.cal-cell:hover{border-color:var(--brd2);box-shadow:0 2px 8px rgba(0,0,0,.06);transform:translateY(-1px)}
+.cal-cell.today{border:2px solid #1a1917}
+.cal-cell.selected{border:2px solid var(--ow);background:var(--ow-bg)}
+.cal-cell.feriado{background:var(--err-bg);border-color:#fca5a5;cursor:not-allowed}
+.cal-cell.future-os{background:#fffdf0;border-color:#f5d98a}
+.cal-cell.has-os{background:#f0fdf8;border-color:#9FE1CB}
+.cal-cell.empty-cell{opacity:.25;pointer-events:none}
+.cal-cell-day{font-size:11.5px;font-weight:600;color:var(--tx2);margin-bottom:3px}
+.cal-cell.today .cal-cell-day{color:#1a1917;font-size:13px}
+.cal-cell-bar{position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--brd)}
+.cal-cell-bar-fill{height:100%;border-radius:0;transition:width .4s ease}
+.cal-cell-os-item{font-size:8.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--surf);padding:1px 4px;border-radius:2px;margin-top:2px}
+/* Modo dia */
+.cal-dia-wrap{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.cal-dia-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cal-dia-stat{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;position:relative}
+.cal-dia-stat-v{font-size:26px;font-weight:700;line-height:1;margin-bottom:3px}
+.cal-dia-stat-l{font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.7px}
+.cal-dia-stat-bar{height:3px;border-radius:2px;margin-top:8px;overflow:hidden;background:var(--brd)}
+.cal-dia-stat-bar div{height:100%;border-radius:2px}
+.cal-dia-os-row{display:flex;flex-direction:column;gap:6px}
+.cal-dia-os-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .12s}
+.cal-dia-os-card:hover{border-color:var(--brd2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.cal-dia-seq{width:22px;height:22px;border-radius:6px;background:var(--surf2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--tx3);flex-shrink:0}
+/* Modo ano */
+.cal-ano-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 16px 16px}
+.cal-mes-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:14px;cursor:pointer;transition:all .12s;position:relative;overflow:hidden}
+.cal-mes-card:hover{border-color:var(--brd2);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.cal-mes-card.active-mes{border-color:var(--ow);background:var(--ow-bg)}
+.cal-mes-nome{font-size:13px;font-weight:600;margin-bottom:8px}
+.cal-mes-num{font-size:28px;font-weight:700;line-height:1;margin-bottom:3px}
+.cal-mes-sub{font-size:10px;color:var(--tx3)}
+.cal-mes-sparkbar{display:flex;align-items:flex-end;gap:2px;height:24px;margin-top:8px}
+.cal-mes-sparkbar span{flex:1;background:var(--ow);border-radius:2px 2px 0 0;opacity:.7;min-height:2px;transition:height .3s}
+/* Modo geral */
+.cal-geral-wrap{padding:0 16px 16px}
+.cal-geral-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.cal-geral-table{background:var(--surf);border:1px solid var(--brd);border-radius:10px;overflow:hidden}
+.cal-geral-table table{width:100%;border-collapse:collapse}
+.cal-geral-table th{background:#f0efe9;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;color:var(--tx3);border-bottom:1px solid var(--brd)}
+.cal-geral-table td{padding:10px 14px;font-size:12.5px;border-bottom:1px solid #f5f4f0;vertical-align:middle}
+.cal-geral-table tr:last-child td{border-bottom:none}
+.cal-geral-table tr:hover td{background:var(--bg)}
+/* ── CALENDÁRIO FIM ──────────────────────────────────── */
 .dash-ticker-wrap{display:flex;align-items:center;gap:0;background:#0f0f0f;border-radius:var(--r);overflow:hidden;margin:0 16px 14px;height:42px;flex-shrink:0}
 .dash-ticker-label{padding:0 14px;font-size:10px;font-weight:700;color:#fff;letter-spacing:1.5px;background:#1a1917;height:100%;display:flex;align-items:center;flex-shrink:0;border-right:1px solid #333}
 .dash-ticker-track{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
@@ -522,24 +593,37 @@ button,select,input,textarea{font-family:inherit}
 
     <!-- DASHBOARD -->
     <div id="screen-dashboard" class="screen">
-      <div class="hdr"><span class="htitle">Dashboard</span><div class="hsp"></div><span class="sync-badge"><div class="sync-dot"></div>Tempo real</span><button class="btn-exp" onclick="capturarTela('dash-content','dashboard')" title="Salvar como imagem" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;cursor:pointer;color:var(--tx2);transition:all .12s"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2"/><path d="M4 3V2h6v1"/></svg>Capturar</button></div>
+      <div class="hdr">
+        <span class="htitle">Dashboard</span>
+        <div class="hsp"></div>
+        <div class="cal-mode-tabs">
+          <button class="cal-mode-btn on" id="dash-period-dia"   onclick="setDashPeriod('dia')">Dia</button>
+          <button class="cal-mode-btn"    id="dash-period-mes"   onclick="setDashPeriod('mes')">Mês</button>
+          <button class="cal-mode-btn"    id="dash-period-ano"   onclick="setDashPeriod('ano')">Ano</button>
+          <button class="cal-mode-btn"    id="dash-period-geral" onclick="setDashPeriod('geral')">Geral</button>
+        </div>
+        <span class="sync-badge"><div class="sync-dot"></div>Tempo real</span>
+        <button class="btn-exp" onclick="capturarTela('dash-content','dashboard')" title="Salvar como imagem" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;cursor:pointer;color:var(--tx2);transition:all .12s"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2"/><path d="M4 3V2h6v1"/></svg>Capturar</button>
+      </div>
       <div class="rel-wrap" id="dash-content"></div>
     </div>
 
     <!-- CALENDÁRIO -->
     <div id="screen-calendario" class="screen">
-      <div class="hdr"><span class="htitle">Calendário operacional</span><div class="hsp"></div>
+      <div class="hdr">
+        <span class="htitle">Calendário operacional</span>
+        <div class="hsp"></div>
+        <!-- Seletor de modo -->
+        <div class="cal-mode-tabs">
+          <button class="cal-mode-btn on" id="calmode-dia"    onclick="setCalMode('dia')">Dia</button>
+          <button class="cal-mode-btn"    id="calmode-mes"    onclick="setCalMode('mes')">Mês</button>
+          <button class="cal-mode-btn"    id="calmode-ano"    onclick="setCalMode('ano')">Ano</button>
+          <button class="cal-mode-btn"    id="calmode-geral"  onclick="setCalMode('geral')">Geral</button>
+        </div>
         <button class="btn-ghost" style="font-size:12px;padding:5px 11px" onclick="clonePrompt()">Clonar rota</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
-      <div style="padding:16px;overflow-y:auto;flex:1">
-        <div style="display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap;font-size:11.5px;color:var(--tx2)">
-          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:var(--ok);display:inline-block"></span>Com rotas</span>
-          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:#f5d98a;display:inline-block"></span>Futuro</span>
-          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:var(--err);display:inline-block"></span>Feriado</span>
-        </div>
-        <div id="cal-content"></div>
-      </div>
+      <div id="cal-content" style="overflow-y:auto;flex:1"></div>
     </div>
 
     <!-- HIST. FINALIZADO -->
@@ -910,6 +994,7 @@ async function doLogin(){
     setLoginErr(msgs[e.code]||'Erro: '+e.message);
   }
 }
+window.doLogin = doLogin;
 function doReset(){
   // Apenas informa — reset é feito pelo admin via modal de usuário
   toast('Para redefinir sua senha, solicite ao administrador do sistema.','warn');
@@ -1679,42 +1764,351 @@ function closeModal(id){document.getElementById(id).classList.remove('on')}
 /* ═══════════════════════════════════════════════════════════
    CALENDÁRIO
 ═══════════════════════════════════════════════════════════ */
+/* ── MODO DO CALENDÁRIO ─────────────────────────────── */
+let calMode = 'mes'; // dia | mes | ano | geral
+
+function setCalMode(mode){
+  calMode = mode;
+  document.querySelectorAll('.cal-mode-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('calmode-'+mode)?.classList.add('on');
+  renderCalendario();
+}
+window.setCalMode = setCalMode;
+
 function renderCalendario(){
-  const wrap=document.getElementById('cal-content'); wrap.innerHTML='';
-  const nav=document.createElement('div');
-  nav.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-    <button onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendario()" style="width:30px;height:30px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center">
+  const wrap = document.getElementById('cal-content'); if(!wrap) return;
+  wrap.innerHTML = '';
+
+  // ── Ticker topo: próximos 7 dias com OS ──
+  const tickerDays = [];
+  for(let i=-3; i<=6; i++){
+    const d = new Date(); d.setDate(d.getDate()+i);
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const os = ordensForDate(ds);
+    if(os.length || i===0) tickerDays.push({ds, os, i});
+  }
+  const tickerHTML = tickerDays.map(({ds,os,i}) => {
+    const fin = os.filter(o=>o.status==='finalizado').length;
+    const d = new Date(ds+'T12:00:00');
+    const label = i===0 ? 'HOJE' : i===-1 ? 'ONTEM' : d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}).toUpperCase();
+    return `<div class="cal-tick-item">
+      <span class="cal-tick-date">${label}</span>
+      <span class="cal-tick-os">${os.length} OS</span>
+      ${os.length>0 ? '<span class="cal-tick-count '+( fin===os.length&&os.length>0?'cal-tick-up':'cal-tick-zero')+'">'+fin+'/'+os.length+'</span>' : ''}
+    </div><div class="cal-tick-sep">|</div>`;
+  }).join('');
+
+  const ticker = document.createElement('div');
+  ticker.className = 'cal-ticker';
+  ticker.innerHTML = tickerHTML;
+  wrap.appendChild(ticker);
+
+  // ── Conteúdo por modo ──────────────────────────────
+  if(calMode === 'mes') renderCalMes(wrap);
+  else if(calMode === 'dia') renderCalDia(wrap);
+  else if(calMode === 'ano') renderCalAno(wrap);
+  else renderCalGeral(wrap);
+}
+
+/* ── MODO MÊS ─────────────────────────────────────────── */
+function renderCalMes(wrap){
+  const nav = document.createElement('div');
+  nav.className = 'cal-nav';
+  const totalMes = Object.values(S.ordens).flat().filter(o=>o.data&&o.data.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`)).length;
+  nav.innerHTML = `
+    <button class="cal-nav-btn" onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendario()">
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L5 7l4 5"/></svg>
     </button>
-    <span style="font-size:16px;font-weight:600;flex:1;letter-spacing:-.2px">${MESES[calMonth]} ${calYear}</span>
-    <button onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendario()" style="width:30px;height:30px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center">
+    <div>
+      <span class="cal-nav-title">${MESES[calMonth]}</span>
+      <span class="cal-nav-sub">${calYear} · ${totalMes} OS no mês</span>
+    </div>
+    <div class="hsp"></div>
+    <button class="cal-today-btn" onclick="calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderCalendario()">Hoje</button>
+    <button class="cal-nav-btn" onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendario()">
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 2l4 5-4 5"/></svg>
-    </button>
-  </div>`;
+    </button>`;
   wrap.appendChild(nav);
-  const grid=document.createElement('div');
-  grid.style.cssText='display:grid;grid-template-columns:repeat(7,1fr);gap:5px';
-  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(d=>{const e=document.createElement('div');e.style.cssText='font-size:10px;font-weight:600;color:var(--tx3);text-align:center;padding:4px 0;text-transform:uppercase;letter-spacing:.4px';e.textContent=d;grid.appendChild(e)});
-  const first=new Date(calYear,calMonth,1).getDay();
-  const days=new Date(calYear,calMonth+1,0).getDate();
-  for(let i=0;i<first;i++){const e=document.createElement('div');e.style.cssText='opacity:.2;pointer-events:none;border:1px solid var(--brd);border-radius:8px;min-height:68px;background:var(--surf)';grid.appendChild(e)}
+
+  // Legenda
+  const leg = document.createElement('div');
+  leg.style.cssText = 'display:flex;gap:14px;padding:0 16px 10px;flex-wrap:wrap;flex-shrink:0';
+  leg.innerHTML = [
+    ['#1D9E75','Com rotas (passado)'], ['#f5d98a','Com rotas (futuro)'],
+    ['#1a1917','Hoje'], ['var(--err)','Feriado'],
+  ].map(([c,l])=>`<span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)">
+    <span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span>${l}
+  </span>`).join('');
+  wrap.appendChild(leg);
+
+  const monthWrap = document.createElement('div');
+  monthWrap.className = 'cal-month-wrap';
+
+  const hdrs = document.createElement('div');
+  hdrs.className = 'cal-week-headers';
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(d=>{
+    const e = document.createElement('div');
+    e.className = 'cal-week-hd'; e.textContent = d;
+    hdrs.appendChild(e);
+  });
+  monthWrap.appendChild(hdrs);
+
+  const grid = document.createElement('div');
+  grid.className = 'cal-month-grid';
+  const first = new Date(calYear,calMonth,1).getDay();
+  const days  = new Date(calYear,calMonth+1,0).getDate();
+  const maxOs = Math.max(...Array.from({length:days},(_,i)=>{
+    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`;
+    return ordensForDate(ds).length;
+  }),1);
+
+  for(let i=0;i<first;i++){
+    const e=document.createElement('div'); e.className='cal-cell empty-cell'; grid.appendChild(e);
+  }
   for(let d=1;d<=days;d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isT=ds===TODAY_STR, isFer=isFeriado(ds), isFut=ds>TODAY_STR, isSel=ds===currentDate;
     const dayOs=ordensForDate(ds);
-    let brd=isT||isSel?'2':'1', brdCol=isT?'var(--tx)':isSel?'var(--ow)':isFer?'#fca5a5':dayOs.length&&!isFut?'#9FE1CB':isFut&&dayOs.length?'#f5d98a':'var(--brd)';
-    let bg=isFer?'var(--err-bg)':isSel&&!isT?'var(--ow-bg)':isFut&&dayOs.length?'#fffdf0':'var(--surf)';
+    const fin=dayOs.filter(o=>o.status==='finalizado').length;
+    const taxa=dayOs.length?Math.round(fin/dayOs.length*100):0;
     const cell=document.createElement('div');
-    cell.style.cssText=`border:${brd}px solid ${brdCol};border-radius:8px;padding:7px;min-height:68px;background:${bg};cursor:${isFer?'not-allowed':'pointer'};transition:all .12s;overflow:hidden`;
-    cell.innerHTML=`<div style="font-size:11.5px;font-weight:${isT?'700':'500'};color:${isT?'var(--tx)':isSel?'var(--ow-tx)':'var(--tx2)'};margin-bottom:2px">${d}</div>${isFer?'<div style="font-size:9px;color:var(--err);font-weight:500">Feriado</div>':''}`;
-    if(!isFer&&dayOs.length){
-      dayOs.slice(0,3).forEach(o=>{const item=document.createElement('div');item.style.cssText='font-size:9px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--surf2);padding:1px 4px;border-radius:2px;margin-top:2px';item.textContent='#'+String(o.os).slice(-6)+' '+o.bairro;cell.appendChild(item)});
-      if(dayOs.length>3){const m=document.createElement('div');m.style.cssText='font-size:9px;color:var(--tx3);margin-top:2px';m.textContent=`+${dayOs.length-3} mais`;cell.appendChild(m)}
-    }
-    if(!isFer) cell.onclick=()=>{setCurrentDate(ds);go('rotas',document.querySelector('.ni'))};
+    cell.className='cal-cell'+(isT?' today':'')+(isSel&&!isT?' selected':'')+(isFer?' feriado':'')+(dayOs.length&&isFut?' future-os':'')+(dayOs.length&&!isFut&&!isT?' has-os':'');
+    cell.innerHTML=`
+      <div class="cal-cell-day">${d}</div>
+      ${isFer?'<div style="font-size:8.5px;color:var(--err);font-weight:600">Feriado</div>':''}
+      ${dayOs.length>0?`
+        <div style="font-size:9px;font-weight:700;color:${isFut?'var(--warn-tx)':'var(--ok-tx)'};">${dayOs.length} OS</div>
+        ${fin>0?'<div style="font-size:8.5px;color:var(--ok);margin-top:1px">✓ '+fin+' final.</div>':''}
+        ${dayOs.slice(0,1).map(o=>'<div class="cal-cell-os-item">#'+String(o.os).slice(-6)+'</div>').join('')}
+        <div class="cal-cell-bar"><div class="cal-cell-bar-fill" style="width:${Math.round(dayOs.length/maxOs*100)}%;background:${isFut?'#f5d98a':'#1D9E75'}"></div></div>
+      `:''}
+    `;
+    if(!isFer) cell.onclick=()=>{setCurrentDate(ds);if(calMode==='mes'){setCalMode('dia');}else{go('rotas',document.querySelector('.ni'));}};
     grid.appendChild(cell);
   }
+  monthWrap.appendChild(grid);
+  wrap.appendChild(monthWrap);
+}
+
+/* ── MODO DIA ─────────────────────────────────────────── */
+function renderCalDia(wrap){
+  const os = ordensForDate(currentDate);
+  const fin = os.filter(o=>o.status==='finalizado');
+  const prog = os.filter(o=>o.status==='em_progresso');
+  const pend = os.filter(o=>o.status==='pendente');
+  const fat = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+  const taxa = os.length?Math.round(fin.length/os.length*100):0;
+
+  const nav = document.createElement('div');
+  nav.className = 'cal-nav';
+  const prev = new Date(currentDate+'T12:00:00'); prev.setDate(prev.getDate()-1);
+  const next = new Date(currentDate+'T12:00:00'); next.setDate(next.getDate()+1);
+  const fmtDs = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  nav.innerHTML = `
+    <button class="cal-nav-btn" onclick="setCurrentDate('${fmtDs(prev)}');renderCalendario()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L5 7l4 5"/></svg>
+    </button>
+    <div>
+      <span class="cal-nav-title">${new Date(currentDate+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</span>
+      <span class="cal-nav-sub">${calYear}</span>
+    </div>
+    <div class="hsp"></div>
+    <button class="cal-today-btn" onclick="setCurrentDate(TODAY_STR);renderCalendario()">Hoje</button>
+    <button class="cal-today-btn" onclick="go('rotas',document.querySelector('.ni'))" style="background:#1a1917;color:#fff;border-color:#1a1917">Ver rotas</button>
+    <button class="cal-nav-btn" onclick="setCurrentDate('${fmtDs(next)}');renderCalendario()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 2l4 5-4 5"/></svg>
+    </button>`;
+  wrap.appendChild(nav);
+
+  const diaWrap = document.createElement('div');
+  diaWrap.className = 'cal-dia-wrap';
+
+  // Stats
+  diaWrap.innerHTML = `
+    <div class="cal-dia-stat-row">
+      <div class="cal-dia-stat" style="border-top:3px solid #1a1917">
+        <div class="cal-dia-stat-v">${os.length}</div>
+        <div class="cal-dia-stat-l">Total OS</div>
+        <div class="cal-dia-stat-bar"><div style="width:100%;background:#1a1917"></div></div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #1D9E75">
+        <div class="cal-dia-stat-v" style="color:#1D9E75">${fin.length}</div>
+        <div class="cal-dia-stat-l">Finalizadas</div>
+        <div class="cal-dia-stat-bar"><div style="width:${taxa}%;background:#1D9E75"></div></div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #378ADD">
+        <div class="cal-dia-stat-v" style="color:#378ADD">${prog.length}</div>
+        <div class="cal-dia-stat-l">Em progresso</div>
+        <div class="cal-dia-stat-bar"><div style="width:${os.length?Math.round(prog.length/os.length*100):0}%;background:#378ADD"></div></div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #1D9E75">
+        <div class="cal-dia-stat-v" style="font-size:16px;color:#1D9E75;margin-top:4px">${fmtBRL(fat)}</div>
+        <div class="cal-dia-stat-l">Faturamento</div>
+        <div class="cal-dia-stat-bar"><div style="width:${fin.length?Math.round(fin.filter(o=>parseFloat(o.valor)>0).length/fin.length*100):0}%;background:#1D9E75"></div></div>
+      </div>
+    </div>
+    ${os.length===0 ? '<div style="text-align:center;padding:40px;color:var(--tx3);font-size:13px">Nenhuma OS neste dia.</div>' : ''}
+    <div class="cal-dia-os-row">
+      ${os.map((o,i)=>{
+        const t=S.tecnicos.find(x=>x.id===o.techId);
+        const ts=getTipo(o.tipo);
+        const stColor=o.status==='finalizado'?'#1D9E75':o.status==='pendente'?'#D85A30':'#378ADD';
+        const stLabel=o.status==='finalizado'?'Finalizado':o.status==='pendente'?'Pendente':'Em progresso';
+        return `<div class="cal-dia-os-card" onclick="openDrawer('${o.id}')">
+          <div class="cal-dia-seq">${i+1}</div>
+          <div style="width:4px;height:36px;background:${stColor};border-radius:2px;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+              <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700">#${o.os}</span>
+              <span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;background:${ts.bg};color:${ts.color}">${o.tipo}</span>
+              <span style="font-size:10px;font-weight:600;color:${stColor};margin-left:auto">${stLabel}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--tx2)">${o.modelo||'—'} · ${fmtEndereco(o)||'—'}</div>
+          </div>
+          ${t?`<div style="width:28px;height:28px;border-radius:50%;background:${t.color};color:${t.tx};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${t.ini}</div>`:''}
+          ${parseFloat(o.valor)>0?`<div style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#1D9E75;flex-shrink:0">${fmtBRL(parseFloat(o.valor))}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  wrap.appendChild(diaWrap);
+}
+
+/* ── MODO ANO ─────────────────────────────────────────── */
+function renderCalAno(wrap){
+  const nav = document.createElement('div');
+  nav.className = 'cal-nav';
+  const totalAno = Object.values(S.ordens).flat().filter(o=>o.data&&o.data.startsWith(String(calYear))).length;
+  nav.innerHTML = `
+    <button class="cal-nav-btn" onclick="calYear--;renderCalendario()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L5 7l4 5"/></svg>
+    </button>
+    <div>
+      <span class="cal-nav-title">${calYear}</span>
+      <span class="cal-nav-sub">${totalAno} OS no ano</span>
+    </div>
+    <div class="hsp"></div>
+    <button class="cal-today-btn" onclick="calYear=new Date().getFullYear();renderCalendario()">Ano atual</button>
+    <button class="cal-nav-btn" onclick="calYear++;renderCalendario()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 2l4 5-4 5"/></svg>
+    </button>`;
+  wrap.appendChild(nav);
+
+  // Calcular max para sparklines
+  const mesData = MESES.map((_,m)=>{
+    const key = `${calYear}-${String(m+1).padStart(2,'0')}`;
+    const os = Object.values(S.ordens).flat().filter(o=>o.data&&o.data.startsWith(key));
+    const fin = os.filter(o=>o.status==='finalizado');
+    const fat = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+    return {os:os.length, fin:fin.length, fat, mes:m};
+  });
+  const maxOs = Math.max(...mesData.map(x=>x.os),1);
+
+  const grid = document.createElement('div');
+  grid.className = 'cal-ano-grid';
+  mesData.forEach(({os,fin,fat,mes})=>{
+    const isCurMes = mes===calMonth && calYear===new Date().getFullYear();
+    const taxa = os?Math.round(fin/os*100):0;
+    const card = document.createElement('div');
+    card.className = 'cal-mes-card'+(isCurMes?' active-mes':'');
+    card.innerHTML = `
+      <div class="cal-mes-nome">${MESES[mes]}</div>
+      <div class="cal-mes-num">${os}</div>
+      <div class="cal-mes-sub">${fin} finaliz. · ${taxa}%${fat>0?' · '+fmtBRL(fat):''}</div>
+      <div class="cal-mes-sparkbar">
+        <span style="height:${os?Math.round(os/maxOs*100):2}%"></span>
+        <span style="height:${os?Math.round(fin/Math.max(os,1)*100):2}%;background:#1D9E75;opacity:1"></span>
+      </div>`;
+    card.onclick=()=>{calMonth=mes;setCalMode('mes');};
+    grid.appendChild(card);
+  });
   wrap.appendChild(grid);
+}
+
+/* ── MODO GERAL ───────────────────────────────────────── */
+function renderCalGeral(wrap){
+  const allOs = Object.values(S.ordens).flat();
+  const fin   = allOs.filter(o=>o.status==='finalizado');
+  const fat   = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+
+  // Agrupar por mês
+  const byMes = {};
+  allOs.forEach(o=>{
+    if(!o.data) return;
+    const k = o.data.slice(0,7);
+    if(!byMes[k]) byMes[k]={total:0,fin:0,fat:0,lp:0,ow:0,ftc:0};
+    byMes[k].total++;
+    if(o.status==='finalizado'){byMes[k].fin++;byMes[k].fat+=parseFloat(o.valor)||0;}
+    if(o.prio==='lp') byMes[k].lp++;
+    if(o.prio==='ow') byMes[k].ow++;
+    if(o.ftc==='sim') byMes[k].ftc++;
+  });
+  const meses = Object.keys(byMes).sort((a,b)=>b.localeCompare(a));
+
+  const nav = document.createElement('div');
+  nav.className = 'cal-nav';
+  nav.innerHTML = `
+    <span class="cal-nav-title">Visão geral</span>
+    <span class="cal-nav-sub">${allOs.length} OS · ${meses.length} meses carregados</span>`;
+  wrap.appendChild(nav);
+
+  const geralWrap = document.createElement('div');
+  geralWrap.className = 'cal-geral-wrap';
+
+  // KPIs totais
+  const taxa = allOs.length?Math.round(fin.length/allOs.length*100):0;
+  geralWrap.innerHTML = `
+    <div class="cal-geral-stat-row">
+      <div class="cal-dia-stat" style="border-top:3px solid #1a1917">
+        <div class="cal-dia-stat-v">${allOs.length}</div>
+        <div class="cal-dia-stat-l">Total OS (carregadas)</div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #1D9E75">
+        <div class="cal-dia-stat-v" style="color:#1D9E75">${fin.length}</div>
+        <div class="cal-dia-stat-l">Finalizadas · ${taxa}%</div>
+        <div class="cal-dia-stat-bar"><div style="width:${taxa}%;background:#1D9E75"></div></div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #BA7517">
+        <div class="cal-dia-stat-v" style="font-size:15px;margin-top:4px;color:#BA7517">${fmtBRL(fat)}</div>
+        <div class="cal-dia-stat-l">Faturamento total</div>
+      </div>
+      <div class="cal-dia-stat" style="border-top:3px solid #7F77DD">
+        <div class="cal-dia-stat-v" style="color:#7F77DD">${meses.length}</div>
+        <div class="cal-dia-stat-l">Meses carregados</div>
+      </div>
+    </div>
+    <div class="cal-geral-table">
+      <table>
+        <thead><tr>
+          <th>Mês</th><th>Total</th><th>Finaliz.</th><th>Taxa</th>
+          <th>LP</th><th>OW</th><th>FTC</th><th>Faturamento</th>
+        </tr></thead>
+        <tbody>
+          ${meses.map(k=>{
+            const m=byMes[k];
+            const t=m.total?Math.round(m.fin/m.total*100):0;
+            const [yr,mn]=k.split('-');
+            return `<tr onclick="calYear=parseInt('${yr}');calMonth=parseInt('${mn}')-1;setCalMode('mes')" style="cursor:pointer">
+              <td><b>${MESES[parseInt(mn)-1]} ${yr}</b></td>
+              <td><b>${m.total}</b></td>
+              <td style="color:#1D9E75">${m.fin}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="flex:1;height:5px;background:var(--brd);border-radius:3px;overflow:hidden;min-width:40px">
+                    <div style="height:100%;width:${t}%;background:${t>=70?'#1D9E75':t>=40?'var(--warn)':'#D85A30'};border-radius:3px"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:${t>=70?'#1D9E75':t>=40?'var(--warn)':'#D85A30'};width:28px">${t}%</span>
+                </div>
+              </td>
+              <td>${m.lp}</td><td>${m.ow}</td><td>${m.ftc}</td>
+              <td style="font-family:'DM Mono',monospace;font-size:12px;color:${m.fat>0?'#1D9E75':'var(--tx3)'}">
+                ${m.fat>0?fmtBRL(m.fat):'—'}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  wrap.appendChild(geralWrap);
 }
 function clonePrompt(){
   const src=prompt('Data de origem para clonar (AAAA-MM-DD):');
@@ -2160,8 +2554,92 @@ function doPrintRom(){
 /* ═══════════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════════ */
+let dashPeriod = 'dia';
+let dashMes = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+let dashAno  = new Date().getFullYear();
+let _dashLoading = false;
+
+function setDashPeriod(p){
+  dashPeriod = p;
+  document.querySelectorAll('[id^="dash-period-"]').forEach(b=>b.classList.remove('on'));
+  document.getElementById('dash-period-'+p)?.classList.add('on');
+  if(p==='mes')  carregarDashMes(dashMes);
+  else if(p==='ano') carregarDashAno(dashAno);
+  else renderDashboard();
+}
+window.setDashPeriod = setDashPeriod;
+
+async function carregarDashMes(mes){
+  _dashLoading = true;
+  renderDashboard(); // mostra loading
+  try {
+    // Buscar todos os dias do mês que ainda não estão em cache
+    const [yr, mn] = mes.split('-').map(Number);
+    const diasNoMes = new Date(yr, mn, 0).getDate();
+    const {getDocs, collection, query: q} = getFB();
+    for(let d=1; d<=diasNoMes; d++){
+      const ds = `${yr}-${String(mn).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(S.ordens[ds]) continue; // já em cache
+      try {
+        const snap = await getDocs(q(collection(getDB(), `rotas/${ds}/ordens`)));
+        S.ordens[ds] = snap.docs.map(x=>({id:x.id, data:ds, ...x.data()}));
+      } catch(e){ S.ordens[ds] = []; }
+    }
+  } catch(e){ console.warn('carregarDashMes err:',e); }
+  _dashLoading = false;
+  renderDashboard();
+}
+
+async function carregarDashAno(ano){
+  _dashLoading = true;
+  renderDashboard();
+  try {
+    const {getDocs, collection, query: q} = getFB();
+    for(let m=1; m<=12; m++){
+      const mesKey = `${ano}-${String(m).padStart(2,'0')}`;
+      const diasNoMes = new Date(ano, m, 0).getDate();
+      for(let d=1; d<=diasNoMes; d++){
+        const ds = `${mesKey}-${String(d).padStart(2,'0')}`;
+        if(S.ordens[ds]) continue;
+        try {
+          const snap = await getDocs(q(collection(getDB(), `rotas/${ds}/ordens`)));
+          S.ordens[ds] = snap.docs.map(x=>({id:x.id, data:ds, ...x.data()}));
+        } catch(e){ S.ordens[ds] = []; }
+      }
+    }
+  } catch(e){ console.warn('carregarDashAno err:',e); }
+  _dashLoading = false;
+  renderDashboard();
+}
+
+function getDashOrdens(){
+  if(dashPeriod==='dia')   return ordensForDate(currentDate);
+  if(dashPeriod==='mes')   return Object.values(S.ordens).flat().filter(o=>o.data?.startsWith(dashMes));
+  if(dashPeriod==='ano')   return Object.values(S.ordens).flat().filter(o=>o.data?.startsWith(String(dashAno)));
+  return Object.values(S.ordens).flat(); // geral
+}
+
+function getDashLabel(){
+  if(dashPeriod==='dia')   return fmtShort(currentDate)+(currentDate===TODAY_STR?' · Hoje':'');
+  if(dashPeriod==='mes')   return MESES[parseInt(dashMes.split('-')[1])-1]+' '+dashMes.split('-')[0];
+  if(dashPeriod==='ano')   return 'Ano '+dashAno;
+  return 'Todos os dados';
+}
+
 function renderDashboard(){
-  const all=ordensForDate(currentDate);
+  const wrap=document.getElementById('dash-content'); if(!wrap)return;
+
+  // Loading state enquanto busca dados do Firestore
+  if(_dashLoading){
+    wrap.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;padding:60px;color:var(--tx3)">
+      <div class="big-spin"></div>
+      <div style="font-size:13px">Carregando dados de ${getDashLabel()}...</div>
+    </div>`;
+    return;
+  }
+
+  const all=getDashOrdens();
+  const label=getDashLabel();
   const fin=all.filter(o=>o.status==='finalizado');
   const prog=all.filter(o=>o.status==='em_progresso');
   const pend=all.filter(o=>o.status==='pendente');
@@ -2169,12 +2647,26 @@ function renderDashboard(){
   const fatOS=fin.filter(o=>parseFloat(o.valor)>0);
   const ftc=all.filter(o=>o.ftc==='sim');
   const taxa=all.length?Math.round(fin.length/all.length*100):0;
-  const wrap=document.getElementById('dash-content'); if(!wrap)return;
 
   // Ticker items — OS faturadas
   const tickerItems=fatOS.length
     ? fatOS.map(o=>`<div class="dash-tick-item"><span class="dash-tick-os">OS ${o.os}</span><span class="dash-tick-val">${fmtBRL(parseFloat(o.valor))}</span></div>`).join('<div class="dash-tick-sep">·</div>')
-    : '<div class="dash-tick-item" style="color:var(--tx3)">Nenhuma OS faturada hoje</div>';
+    : '<div class="dash-tick-item" style="color:var(--tx3)">Nenhuma OS faturada</div>';
+
+  // Controles de navegação por período
+  const navControls = dashPeriod==='mes' ? `
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding:0 12px">
+      <button onclick="const p=dashMes.split('-');let m=parseInt(p[1])-2,y=parseInt(p[0]);if(m<0){m=11;y--;}dashMes=y+'-'+String(m+1).padStart(2,'0');carregarDashMes(dashMes)" style="width:22px;height:22px;border:1px solid #333;border-radius:4px;background:transparent;cursor:pointer;color:#aaa;font-size:11px">‹</button>
+      <span style="font-size:11px;color:#ccc;font-weight:600;white-space:nowrap">${label}</span>
+      <button onclick="const p=dashMes.split('-');let m=parseInt(p[1]),y=parseInt(p[0]);if(m>11){m=0;y++;}dashMes=y+'-'+String(m+1).padStart(2,'0');carregarDashMes(dashMes)" style="width:22px;height:22px;border:1px solid #333;border-radius:4px;background:transparent;cursor:pointer;color:#aaa;font-size:11px">›</button>
+    </div>` :
+    dashPeriod==='ano' ? `
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding:0 12px">
+      <button onclick="dashAno--;carregarDashAno(dashAno)" style="width:22px;height:22px;border:1px solid #333;border-radius:4px;background:transparent;cursor:pointer;color:#aaa;font-size:11px">‹</button>
+      <span style="font-size:11px;color:#ccc;font-weight:600">${label}</span>
+      <button onclick="dashAno++;carregarDashAno(dashAno)" style="width:22px;height:22px;border:1px solid #333;border-radius:4px;background:transparent;cursor:pointer;color:#aaa;font-size:11px">›</button>
+    </div>` :
+    `<div style="font-size:11px;color:#888;padding:0 14px;flex-shrink:0">${label}</div>`;
 
   // Produtividade máxima para barras
   const maxT=Math.max(...S.tecnicos.map(t=>all.filter(o=>o.techId===t.id).length),1);
@@ -2184,6 +2676,7 @@ function renderDashboard(){
   <!-- ── TICKER B3 ─────────────────────────────────────── -->
   <div class="dash-ticker-wrap">
     <div class="dash-ticker-label">FATURADO</div>
+    ${navControls}
     <div class="dash-ticker-track">
       <div class="dash-ticker-inner" id="dash-ticker">${tickerItems}${tickerItems}</div>
     </div>
@@ -2196,7 +2689,7 @@ function renderDashboard(){
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="16" height="13" rx="1.5"/><path d="M6 4V3M14 4V3M2 8h16"/></svg></div>
       <div class="dkc-val">${all.length}</div>
       <div class="dkc-lbl">Total OS</div>
-      <div class="dkc-sub">${fmtShort(currentDate)}</div>
+      <div class="dkc-sub">${label}</div>
     </div>
     <div class="dash-kpi-card green">
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg></div>
