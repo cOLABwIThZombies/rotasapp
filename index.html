@@ -287,6 +287,52 @@ button,select,input,textarea{font-family:inherit}
 .audit-item{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:10px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
 .audit-tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;white-space:nowrap}
 .audit-txt{font-size:12.5px;flex:1}.audit-meta{font-size:11px;color:var(--tx3);white-space:nowrap}
+/* ── DASHBOARD POWER BI ────────────────────────────────── */
+.dash-ticker-wrap{display:flex;align-items:center;gap:0;background:#0f0f0f;border-radius:var(--r);overflow:hidden;margin:0 16px 14px;height:42px;flex-shrink:0}
+.dash-ticker-label{padding:0 14px;font-size:10px;font-weight:700;color:#fff;letter-spacing:1.5px;background:#1a1917;height:100%;display:flex;align-items:center;flex-shrink:0;border-right:1px solid #333}
+.dash-ticker-track{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
+.dash-ticker-inner{display:flex;align-items:center;gap:0;white-space:nowrap;will-change:transform}
+.dash-tick-item{display:flex;flex-direction:column;align-items:flex-start;padding:0 18px;cursor:default}
+.dash-tick-os{font-size:9px;color:#888;letter-spacing:.5px;font-family:'DM Mono',monospace}
+.dash-tick-val{font-size:13px;font-weight:700;color:#1D9E75;font-family:'DM Mono',monospace;letter-spacing:.3px}
+.dash-tick-sep{color:#333;font-size:18px;flex-shrink:0;margin:0 4px}
+.dash-ticker-total{padding:0 16px;font-size:13px;font-weight:700;color:#fff;background:#1a1917;height:100%;display:flex;align-items:center;flex-shrink:0;border-left:1px solid #333;font-family:'DM Mono',monospace;letter-spacing:.3px;white-space:nowrap}
+.dash-kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:0 16px 14px;flex-shrink:0}
+.dash-kpi-card{border-radius:10px;padding:14px 16px 12px;position:relative;overflow:hidden;min-width:0}
+.dash-kpi-card.dark{background:#1a1917;color:#fff}
+.dash-kpi-card.green{background:linear-gradient(135deg,#0d5e3f,#1D9E75);color:#fff}
+.dash-kpi-card.blue{background:linear-gradient(135deg,#0c3460,#378ADD);color:#fff}
+.dash-kpi-card.red{background:linear-gradient(135deg,#6b1010,#D85A30);color:#fff}
+.dash-kpi-card.gold{background:linear-gradient(135deg,#5a3a00,#BA7517);color:#fff}
+.dash-kpi-card.teal{background:linear-gradient(135deg,#0c4455,#1D8AA0);color:#fff}
+.dkc-icon{position:absolute;top:10px;right:10px;opacity:.25;width:28px;height:28px}
+.dkc-icon svg{width:28px;height:28px;stroke:#fff}
+.dkc-val{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px;letter-spacing:-.5px}
+.dkc-lbl{font-size:10px;font-weight:600;opacity:.8;text-transform:uppercase;letter-spacing:.8px}
+.dkc-sub{font-size:10px;opacity:.65;margin-top:3px}
+.dkc-bar{height:3px;background:rgba(255,255,255,.2);border-radius:2px;margin:6px 0 3px;overflow:hidden}
+.dkc-bar div{height:100%;background:#fff;border-radius:2px;transition:width .6s ease}
+.dash-mid-row{display:flex;gap:10px;padding:0 16px 14px;flex-shrink:0}
+.dash-card{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;overflow:hidden}
+.dc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.dc-title{font-size:12px;font-weight:600;color:var(--tx)}
+.dc-badge{font-size:10px;color:var(--tx3);background:var(--surf2);padding:2px 8px;border-radius:20px}
+.dash-prod-grid{display:flex;flex-direction:column;gap:10px}
+.dash-prod-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg);border-radius:8px;transition:.12s}
+.dash-prod-row:hover{background:var(--surf2)}
+.dash-prod-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.dash-prod-info{flex:1;min-width:0}
+.dash-prod-nome{font-size:12.5px;font-weight:600;margin-bottom:5px}
+.dash-prod-bar-wrap{display:flex;align-items:center;gap:8px}
+.dash-prod-bar-track{flex:1;height:6px;background:var(--brd);border-radius:3px;overflow:hidden;display:flex}
+.dash-prod-bar-done{height:100%;background:#1D9E75;border-radius:3px 0 0 3px;transition:width .5s ease}
+.dash-prod-bar-prog{height:100%;background:#378ADD;transition:width .5s ease}
+.dash-prod-pct{font-size:11px;font-weight:600;width:32px;text-align:right;flex-shrink:0}
+.dash-prod-nums{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.dash-prod-num{font-size:18px;font-weight:700;color:var(--tx);line-height:1}
+.dash-prod-num span{font-size:10px;font-weight:400;color:var(--tx3);margin-left:2px}
+.dash-prod-fat{font-size:11px;font-weight:600;color:#1D9E75;font-family:'DM Mono',monospace}
+/* ── DASHBOARD FIM ───────────────────────────────────── */
 .rel-wrap{padding:16px;overflow-y:auto;flex:1}
 .rel-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
 .kpi{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:10px 13px}
@@ -2117,43 +2163,145 @@ function doPrintRom(){
 function renderDashboard(){
   const all=ordensForDate(currentDate);
   const fin=all.filter(o=>o.status==='finalizado');
-  const fat=all.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+  const prog=all.filter(o=>o.status==='em_progresso');
+  const pend=all.filter(o=>o.status==='pendente');
+  const fat=fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+  const fatOS=fin.filter(o=>parseFloat(o.valor)>0);
+  const ftc=all.filter(o=>o.ftc==='sim');
+  const taxa=all.length?Math.round(fin.length/all.length*100):0;
   const wrap=document.getElementById('dash-content'); if(!wrap)return;
+
+  // Ticker items — OS faturadas
+  const tickerItems=fatOS.length
+    ? fatOS.map(o=>`<div class="dash-tick-item"><span class="dash-tick-os">OS ${o.os}</span><span class="dash-tick-val">${fmtBRL(parseFloat(o.valor))}</span></div>`).join('<div class="dash-tick-sep">·</div>')
+    : '<div class="dash-tick-item" style="color:var(--tx3)">Nenhuma OS faturada hoje</div>';
+
+  // Produtividade máxima para barras
+  const maxT=Math.max(...S.tecnicos.map(t=>all.filter(o=>o.techId===t.id).length),1);
+  const COLS=['#7F77DD','#1D9E75','#D85A30','#378ADD','#BA7517','#639922','#9932CC'];
+
   wrap.innerHTML=`
-  <div class="rel-kpis">
-    <div class="kpi"><div class="kpi-l">Total OS</div><div class="kpi-v">${all.length}</div><div class="kpi-s">${fmtShort(currentDate)}</div></div>
-    <div class="kpi"><div class="kpi-l">Finalizadas</div><div class="kpi-v" style="color:var(--ok)">${fin.length}</div><div class="kpi-s">${all.length?Math.round(fin.length/all.length*100):0}%</div></div>
-    <div class="kpi"><div class="kpi-l">Pendentes</div><div class="kpi-v" style="color:var(--warn)">${all.filter(o=>o.status==='pendente').length}</div></div>
-    <div class="kpi"><div class="kpi-l">Faturamento</div><div class="kpi-v" style="color:var(--ow);font-size:13px;margin-top:4px">${fmtBRL(fat)}</div></div>
-    <div class="kpi"><div class="kpi-l">LP</div><div class="kpi-v" style="color:var(--lp)">${all.filter(o=>o.prio==='lp').length}</div></div>
-    <div class="kpi"><div class="kpi-l">OW</div><div class="kpi-v" style="color:var(--ow)">${all.filter(o=>o.prio==='ow').length}</div></div>
-    <div class="kpi"><div class="kpi-l">FTC</div><div class="kpi-v" style="color:var(--lp)">${all.filter(o=>o.ftc==='sim').length}</div></div>
-    <div class="kpi"><div class="kpi-l">Com peças</div><div class="kpi-v">${all.filter(o=>o.pecas==='sim').length}</div></div>
+  <!-- ── TICKER B3 ─────────────────────────────────────── -->
+  <div class="dash-ticker-wrap">
+    <div class="dash-ticker-label">FATURADO</div>
+    <div class="dash-ticker-track">
+      <div class="dash-ticker-inner" id="dash-ticker">${tickerItems}${tickerItems}</div>
+    </div>
+    <div class="dash-ticker-total">${fmtBRL(fat)}</div>
   </div>
-  <div class="rel-grid">
-    <div class="rel-card"><div class="rel-ct">OS por técnico</div><canvas id="dch-tec" height="160"></canvas></div>
-    <div class="rel-card"><div class="rel-ct">Status</div><canvas id="dch-st" height="160"></canvas></div>
-    <div class="rel-card full">
-      <div class="rel-ct">Produtividade por técnico</div>
-      ${S.tecnicos.map(t=>{
+
+  <!-- ── KPIs ──────────────────────────────────────────── -->
+  <div class="dash-kpi-row">
+    <div class="dash-kpi-card dark">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="16" height="13" rx="1.5"/><path d="M6 4V3M14 4V3M2 8h16"/></svg></div>
+      <div class="dkc-val">${all.length}</div>
+      <div class="dkc-lbl">Total OS</div>
+      <div class="dkc-sub">${fmtShort(currentDate)}</div>
+    </div>
+    <div class="dash-kpi-card green">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg></div>
+      <div class="dkc-val">${fin.length}</div>
+      <div class="dkc-lbl">Finalizadas</div>
+      <div class="dkc-bar"><div style="width:${taxa}%"></div></div>
+      <div class="dkc-sub">${taxa}% de conclusão</div>
+    </div>
+    <div class="dash-kpi-card blue">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2.5"/></svg></div>
+      <div class="dkc-val">${prog.length}</div>
+      <div class="dkc-lbl">Em progresso</div>
+      <div class="dkc-sub">${all.length?Math.round(prog.length/all.length*100):0}% do total</div>
+    </div>
+    <div class="dash-kpi-card red">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 6v4M10 14h.01"/><circle cx="10" cy="10" r="7"/></svg></div>
+      <div class="dkc-val">${pend.length}</div>
+      <div class="dkc-lbl">Pendentes</div>
+      <div class="dkc-sub">Requerem atenção</div>
+    </div>
+    <div class="dash-kpi-card gold">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3l2 4 4.5.7-3.2 3.1.7 4.4L10 13l-4 2.2.7-4.4L3.5 7.7 8 7z"/></svg></div>
+      <div class="dkc-val">${ftc.length}</div>
+      <div class="dkc-lbl">FTC</div>
+      <div class="dkc-sub">Primeiro toque</div>
+    </div>
+    <div class="dash-kpi-card teal">
+      <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 16l4-5 4 3 3-4 3 3"/><path d="M3 4h14"/></svg></div>
+      <div class="dkc-val" style="font-size:15px;margin-top:2px">${fmtBRL(fat)}</div>
+      <div class="dkc-lbl">Faturamento</div>
+      <div class="dkc-sub">${fatOS.length} OS faturadas</div>
+    </div>
+  </div>
+
+  <!-- ── LINHA CENTRAL ─────────────────────────────────── -->
+  <div class="dash-mid-row">
+    <!-- Gráfico OS por técnico -->
+    <div class="dash-card" style="flex:2">
+      <div class="dc-hdr"><span class="dc-title">OS por técnico</span><span class="dc-badge">${currentDate===TODAY_STR?'Hoje':fmtShort(currentDate)}</span></div>
+      <canvas id="dch-tec" height="140"></canvas>
+    </div>
+    <!-- Donut status -->
+    <div class="dash-card" style="flex:1;min-width:180px">
+      <div class="dc-hdr"><span class="dc-title">Status</span></div>
+      <canvas id="dch-st" height="160"></canvas>
+    </div>
+    <!-- LP vs OW -->
+    <div class="dash-card" style="flex:1;min-width:160px">
+      <div class="dc-hdr"><span class="dc-title">Prioridade</span></div>
+      <canvas id="dch-prio" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- ── PRODUTIVIDADE ─────────────────────────────────── -->
+  <div class="dash-card" style="margin:0 16px 16px">
+    <div class="dc-hdr"><span class="dc-title">Produtividade por técnico</span></div>
+    <div class="dash-prod-grid">
+      ${S.tecnicos.map((t,i)=>{
         const tos=all.filter(o=>o.techId===t.id);
         const tf=tos.filter(o=>o.status==='finalizado');
+        const tp=tos.filter(o=>o.status==='pendente');
         const pct=tos.length?Math.round(tf.length/tos.length*100):0;
         const aux=getAux(t.id);
-        const maxT=Math.max(...S.tecnicos.map(x=>all.filter(o=>o.techId===x.id).length),1);
-        return `<div class="bar-row">
-          <div class="bar-lbl" title="${t.nome}">${t.nome.split(' ')[0]}${aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?' / '+aux.nome.split(' ')[0]:''}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${tos.length?Math.round(tos.length/maxT*100):0}%"></div></div>
-          <div class="bar-count">${tos.length}</div>
-          <div style="font-size:11px;color:${pct>=70?'var(--ok)':'var(--warn)'};width:32px;text-align:right;flex-shrink:0">${pct}%</div>
+        const auxNome=aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?aux.nome.split(' ')[0]:'';
+        const fat=tos.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+        return `<div class="dash-prod-row">
+          <div class="dash-prod-av" style="background:${t.color||'#eee'};color:${t.tx||'#333'}">${t.ini||'?'}</div>
+          <div class="dash-prod-info">
+            <div class="dash-prod-nome">${t.nome.split(' ')[0]}${auxNome?' <span style="opacity:.6;font-size:10px">/ '+auxNome+'</span>':''}</div>
+            <div class="dash-prod-bar-wrap">
+              <div class="dash-prod-bar-track">
+                <div class="dash-prod-bar-done" style="width:${tos.length?Math.round(tf.length/tos.length*100):0}%"></div>
+                <div class="dash-prod-bar-prog" style="width:${tos.length?Math.round(tos.filter(o=>o.status==='em_progresso').length/tos.length*100):0}%"></div>
+              </div>
+              <span class="dash-prod-pct" style="color:${pct>=70?'var(--ok)':pct>=40?'var(--warn)':'var(--err)'}">${pct}%</span>
+            </div>
+          </div>
+          <div class="dash-prod-nums">
+            <div class="dash-prod-num">${tos.length}<span>OS</span></div>
+            ${fat>0?'<div class="dash-prod-fat">'+fmtBRL(fat)+'</div>':''}
+          </div>
         </div>`;
       }).join('')}
     </div>
   </div>`;
+
+  // Iniciar ticker animado
+  const ticker=document.getElementById('dash-ticker');
+  if(ticker&&fatOS.length>0){
+    let pos=0;
+    const speed=0.6;
+    const half=ticker.scrollWidth/2;
+    if(window._dashTickTimer) cancelAnimationFrame(window._dashTickTimer);
+    function animTicker(){
+      pos+=speed; if(pos>=half) pos=0;
+      ticker.style.transform=`translateX(-${pos}px)`;
+      window._dashTickTimer=requestAnimationFrame(animTicker);
+    }
+    animTicker();
+  }
+
   setTimeout(()=>{
-    const C=['#7F77DD','#1D9E75','#D85A30','#378ADD','#BA7517','#639922','#9932CC'];
-    mkChart('dch-tec','bar',S.tecnicos.map(t=>t.nome.split(' ')[0]),S.tecnicos.map(t=>all.filter(o=>o.techId===t.id).length),C);
-    mkChart('dch-st','pie',['Finalizadas','Pendentes'],[fin.length,all.length-fin.length],['#1D9E75','#EF9F27']);
+    mkChart('dch-tec','bar',S.tecnicos.map(t=>t.nome.split(' ')[0]),S.tecnicos.map(t=>all.filter(o=>o.techId===t.id).length),COLS);
+    mkChart('dch-st','doughnut',['Finaliz.','Em prog.','Pendente'],[fin.length,prog.length,pend.length],['#1D9E75','#378ADD','#D85A30']);
+    mkChart('dch-prio','doughnut',['LP','OW'],[all.filter(o=>o.prio==='lp').length,all.filter(o=>o.prio==='ow').length],['#D85A30','#378ADD']);
   },80);
 }
 
