@@ -193,9 +193,13 @@ button,select,input,textarea{font-family:inherit}
 .osc.prio-ow{border-top-color:var(--ow)}
 .osc.st-done{opacity:.72}
 .osc.st-done .osc-num{color:var(--ok)}
+.osc.st-pendente{opacity:.72}
+.osc.st-pendente .osc-num{color:var(--err)}
+.osc.st-progresso{}
 .osc.dragging{opacity:.3;transform:scale(.95)}
 .osc-sdot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--brd2)}
 .osc-sdot.done{background:var(--ok)}.osc-sdot.ftc{background:var(--warn)}
+.osc-sdot.pendente{background:var(--err)}.osc-sdot.progresso{background:var(--ow)}
 .osc-num{font-size:13.5px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:-.3px;margin-bottom:3px;padding-right:14px}
 .osc-tipo{font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:5px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .osc-modelo{font-size:10.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
@@ -597,13 +601,14 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Tipo de OS</span><select class="dsel" id="de-tipo"></select></div>
       </div>
       <div class="dfield"><span class="dlbl">Telefone</span><input class="dinp" id="de-tel"></div>
-      <div class="dfield"><span class="dlbl">Nome / Endereço completo</span><textarea class="dta" id="de-endereco" style="min-height:52px"></textarea></div>
+      <div class="dfield"><span class="dlbl">Nome do cliente</span><input class="dinp" id="de-nome-cliente"></div>
+      <div class="dfield"><span class="dlbl">Endereço</span><input class="dinp" id="de-endereco" placeholder="Rua, número"></div>
       <div class="dfield"><span class="dlbl">Complemento</span><input class="dinp" id="de-complemento" placeholder="Apto, Bloco, Torre..."></div>
       <div class="dfield"><span class="dlbl">Observação geral</span><textarea class="dta" id="de-obs"></textarea></div>
     </div>
     <div class="dpanel" id="dp-posrota">
       <div class="dfield" style="margin-top:0"><span class="dlbl">Status</span>
-        <div class="radio-row"><div class="rbtn" id="rb-pend" onclick="setRb('status','pendente')">Pendente</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
+        <div class="radio-row"><div class="rbtn" id="rb-pend" onclick="setRb('status','pendente')" style="border-color:var(--err)">Pendente</div><div class="rbtn" id="rb-prog" onclick="setRb('status','em_progresso')" style="border-color:var(--ow)">Em progresso</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
       </div>
       <div class="dfield"><span class="dlbl">FTC (Primeiro Toque Concluído)</span>
         <div class="radio-row"><div class="rbtn" id="rb-ftcn" onclick="setRb('ftc','nao')">Não</div><div class="rbtn warn" id="rb-ftcs" onclick="setRb('ftc','sim')">Sim</div></div>
@@ -672,7 +677,8 @@ button,select,input,textarea{font-family:inherit}
         <div><label class="lbl">Técnico</label><select class="inp nm" id="m-tec"></select></div>
         <div><label class="lbl">Prioridade</label><select class="inp nm" id="m-prio"><option value="lp">LP</option><option value="ow">OW</option></select></div>
         <div><label class="lbl">Telefone</label><input class="inp nm" id="m-tel"></div>
-        <div><label class="lbl">Nome / Endereço</label><input class="inp nm" id="m-endereco" placeholder="Ex: João Silva — Rua das Flores, 123"></div>
+        <div><label class="lbl">Nome do cliente</label><input class="inp nm" id="m-nome-cliente" placeholder="Ex: João Silva"></div>
+        <div><label class="lbl">Endereço</label><input class="inp nm" id="m-endereco" placeholder="Ex: Rua das Flores, 123"></div>
         <div><label class="lbl">Complemento</label><input class="inp nm" id="m-complemento" placeholder="Apto 42, Bloco B..."></div>
         <div class="mfull"><label class="lbl">Observações</label><textarea class="inp nm" id="m-obs" style="resize:vertical;min-height:48px"></textarea></div>
       </div>
@@ -825,6 +831,7 @@ const ordensForDate = d => S.ordens[d] || [];
 
 // Monta endereço completo: nome/endereço + complemento + bairro + CEP
 const fmtEndereco = o => {
+  // Usa endereco puro (sem nome do cliente) + complemento + bairro + CEP
   const parts = [];
   if(o.endereco)    parts.push(o.endereco);
   if(o.complemento) parts.push(o.complemento);
@@ -832,6 +839,8 @@ const fmtEndereco = o => {
   if(o.cep)         parts.push('CEP: '+o.cep);
   return parts.join(' — ') || '—';
 };
+// Nome do cliente para exibição
+const fmtNome = o => o.nome_cliente || o.endereco?.split('—')[0]?.trim() || '—';
 
 /* ═══════════════════════════════════════════════════════════
    LOGIN / AUTH
@@ -1060,6 +1069,7 @@ function visOS(o){
   if(filtro==='lp')return o.prio==='lp';
   if(filtro==='ow')return o.prio==='ow';
   if(filtro==='pend')return o.status==='pendente';
+  if(filtro==='prog')return o.status==='em_progresso';
   return true;
 }
 
@@ -1075,7 +1085,8 @@ function updateStats(){
     <div class="scard cp" onclick="setFilter('tarde',document.getElementById('fc-tarde'))"><div class="sc-l">Tarde</div><div class="sc-v" style="color:var(--ok)">${all.filter(o=>o.periodo==='tarde').length}</div></div>
     <div class="scard cp" onclick="setFilter('lp',document.getElementById('fc-lp'))"><div class="sc-l">LP</div><div class="sc-v" style="color:var(--lp)">${all.filter(o=>o.prio==='lp').length}</div></div>
     <div class="scard cp" onclick="setFilter('ow',document.getElementById('fc-ow'))"><div class="sc-l">OW</div><div class="sc-v" style="color:var(--ow)">${all.filter(o=>o.prio==='ow').length}</div></div>
-    <div class="scard cp" onclick="setFilter('pend',document.getElementById('fc-pend'))"><div class="sc-l">Pendentes</div><div class="sc-v" style="color:var(--warn)">${all.filter(o=>o.status==='pendente').length}</div></div>
+    <div class="scard cp" onclick="setFilter('pend',document.getElementById('fc-pend'))"><div class="sc-l">Pendentes</div><div class="sc-v" style="color:var(--err)">${all.filter(o=>o.status==='pendente').length}</div></div>
+    <div class="scard cp" onclick="setFilter('prog',document.getElementById('fc-pend'))"><div class="sc-l">Em progresso</div><div class="sc-v" style="color:var(--ow)">${all.filter(o=>o.status==='em_progresso').length}</div></div>
     <div class="scard"><div class="sc-l">Finalizadas</div><div class="sc-v" style="color:var(--ok)">${all.filter(o=>o.status==='finalizado').length}</div></div>
     <div class="scard"><div class="sc-l">Faturamento</div><div class="sc-v" style="color:var(--ok);font-size:13px;margin-top:4px">${fat>0?fmtBRL(fat):'R$ 0'}</div></div>`;
 }
@@ -1147,9 +1158,10 @@ function renderBoard(){
 
 function makeCard(o){
   const ts=getTipo(o.tipo);
-  const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${o.status==='finalizado'?' st-done':''}`;
+  const stClass = o.status==='finalizado'?' st-done':o.status==='pendente'?' st-pendente':o.status==='em_progresso'?' st-progresso':'';
+  const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${stClass}`;
   card.draggable=true; card.dataset.id=o.id;
-  card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.ftc==='sim'?'ftc':''}"></div>
+  card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.status==='pendente'?'pendente':o.status==='em_progresso'?'progresso':o.ftc==='sim'?'ftc':''}"></div>
     <div class="osc-num">${o.os||'—'}</div>
     <div class="osc-tipo" style="background:${ts.bg};color:${ts.color}">${o.tipo||'—'}</div>
     <div class="osc-modelo">${o.modelo||'—'}</div>
@@ -1191,7 +1203,7 @@ async function dropOnLane(techId){
 ═══════════════════════════════════════════════════════════ */
 function openDrawer(id){
   const o=ordensForDate(currentDate).find(x=>x.id===id); if(!o)return;
-  drawerOsId=id; drwState={status:o.status||'pendente',ftc:o.ftc||'nao',faturado:o.faturado||'nao'};
+  drawerOsId=id; drwState={status:o.status||'em_progresso',ftc:o.ftc||'nao',faturado:o.faturado||'nao'};
   const t=S.tecnicos.find(x=>x.id===o.techId);
   const ts=getTipo(o.tipo);
   document.getElementById('drw-num').textContent='#'+o.os;
@@ -1202,12 +1214,12 @@ function openDrawer(id){
     {k:'Período',v:o.periodo==='manha'?'☀ Manhã':'◑ Tarde'},
     {k:'Técnico',v:t?.nome||'—'},
     {k:'CEP',v:o.cep||'—'},
-    {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':'<span class="pill pill-gray">Pendente</span>'},
+    {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':o.status==='em_progresso'?'<span class="pill pill-info">Em progresso</span>':'<span class="pill pill-err">Pendente</span>'},
   ].map(r=>`<div class="di"><div class="di-k">${r.k}</div><div class="di-v">${r.v}</div></div>`).join('');
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
   set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
-  set('de-tel',o.tel);set('de-endereco',o.endereco);set('de-complemento',o.complemento);
+  set('de-tel',o.tel);set('de-nome-cliente',o.nome_cliente||'');set('de-endereco',o.endereco);set('de-complemento',o.complemento);
   // Carregar peças da OS
   drwPecas=(o.pecas_lista||[]).map(p=>({...p,id:Date.now()+Math.random()}));
   drwPecasRender();
@@ -1239,7 +1251,17 @@ function closeDrawer(){document.getElementById('drw-bg').classList.remove('on');
 function drwTab(name,el){document.querySelectorAll('.dpanel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.drw-tab').forEach(t=>t.classList.remove('on'));document.getElementById('dp-'+name).classList.add('on');el.classList.add('on');}
 function setRb(field,val){
   drwState[field]=val;
-  if(field==='status'){document.getElementById('rb-pend').classList.toggle('on',val==='pendente');document.getElementById('rb-done').classList.toggle('on',val==='finalizado');}
+  if(field==='status'){
+    document.getElementById('rb-pend').classList.toggle('on',val==='pendente');
+    const rbProg=document.getElementById('rb-prog'); if(rbProg) rbProg.classList.toggle('on',val==='em_progresso');
+    document.getElementById('rb-done').classList.toggle('on',val==='finalizado');
+    // Cores ativas
+    const rbPend=document.getElementById('rb-pend');
+    if(rbPend) rbPend.style.background=val==='pendente'?'var(--err)':'';
+    if(rbPend) rbPend.style.color=val==='pendente'?'#fff':'';
+    if(rbProg) rbProg.style.background=val==='em_progresso'?'var(--ow)':'';
+    if(rbProg) rbProg.style.color=val==='em_progresso'?'#fff':'';
+  }
   if(field==='ftc'){document.getElementById('rb-ftcn').classList.toggle('on',val==='nao');document.getElementById('rb-ftcs').classList.toggle('on',val==='sim');}
   if(field==='faturado'){document.getElementById('rb-fat-n').classList.toggle('on',val==='nao');document.getElementById('rb-fat-s').classList.toggle('on',val==='sim');}
 }
@@ -1260,6 +1282,7 @@ async function saveDrawer(){
       tipo:document.getElementById('de-tipo').value,
       obs:document.getElementById('de-obs').value,
       tel:document.getElementById('de-tel').value,
+      nome_cliente:document.getElementById('de-nome-cliente')?.value||'',
       endereco:document.getElementById('de-endereco').value,
       complemento:document.getElementById('de-complemento').value,
       status:drwState.status, ftc:drwState.ftc,
@@ -1277,6 +1300,11 @@ async function saveDrawer(){
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
         await logAudit(o.os,'finalizacao','Finalizado','ok');
+      } else if(updates.status==='pendente'&&o.status!=='pendente'){
+        await logAudit(o.os,'pendente','Voltou para pendente','err');
+        await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate);
+      } else if(updates.status==='em_progresso'&&o.status!=='em_progresso'){
+        await logAudit(o.os,'edicao','Em progresso','info');
       } else {
         await logAudit(o.os,'edicao','Dados atualizados','gray');
       }
@@ -1421,6 +1449,7 @@ function _preencherFormOS(u){
   set('m-cep',        u.cep);
   set('m-prio',       u.prio);
   set('m-tel',        u.tel);
+  set('m-nome-cliente', u.nome_cliente||'');
   set('m-endereco',   u.endereco);
   set('m-complemento',u.complemento);
   set('m-obs',        u.obs);
@@ -1517,11 +1546,12 @@ async function saveOS(){
       prio:document.getElementById('m-prio').value,
       techId, obs:document.getElementById('m-obs').value||'',
       tel:document.getElementById('m-tel').value||'',
+      nome_cliente:document.getElementById('m-nome-cliente').value||'',
       endereco:document.getElementById('m-endereco').value||'',
       complemento:document.getElementById('m-complemento').value||'',
       pecas_lista:mosPecas.map(({id:_,...p})=>p),
       tat:'',
-      status:'pendente',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
+      status:isFuture(currentDate)?'pendente':'em_progresso',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
       posicao:all.length,
       createdAt:getFB().serverTimestamp(), createdBy:getUID(),
     };
@@ -1530,7 +1560,7 @@ async function saveOS(){
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
       closeModal('modal-os');
       mosPecas=[];
-      ['m-os','m-modelo','m-serial','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      ['m-os','m-modelo','m-serial','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-nome-cliente','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
       toast('OS '+osNum+' criada','ok');
     }catch(e){toast('Erro ao criar OS: '+e.message,'err');}
   };
@@ -1632,7 +1662,7 @@ function clonePrompt(){
     let count=0;
     for(const o of srcOs){
       const{id:_,data:_d,createdAt:_c,updatedAt:_u,...rest}=o;
-      await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),{...rest,status:'pendente',ftc:'nao',valor:'',obs_sel:'',nota:'',posicao:count++,createdAt:getFB().serverTimestamp(),createdBy:getUID()});
+      await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),{...rest,status:isFuture(currentDate)?'pendente':'em_progresso',ftc:'nao',valor:'',obs_sel:'',nota:'',posicao:count++,createdAt:getFB().serverTimestamp(),createdBy:getUID()});
     }
     toast(`${count} OS clonadas para ${fmtShort(currentDate)}`,'ok');
   });
@@ -1847,7 +1877,7 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
             <div style="font-size:7.5px;color:#555;margin-top:1px">${o.periodo==='manha'?'Manhã':'Tarde'} · ${(o.prio||'').toUpperCase()}-${i+1}</div>
           </td>
           <td style="font-size:8.5px">${o.modelo||'—'}</td>
-          <td style="font-size:8px">${o.endereco?o.endereco.split('—')[0].trim():'—'}</td>
+          <td style="font-size:8px">${o.nome_cliente||o.endereco?.split('—')[0]?.trim()||'—'}</td>
           <td style="font-size:8px">${(()=>{const partes=(o.endereco||'').split('—').map(p=>p.trim()).filter(p=>p.length>1);const reEnd=/\b(rua|r\.|av|avenida|al|alameda|est|estrada|tv\.|\d{2,})/i;const rua=partes.find(p=>reEnd.test(p))||partes[1]||'';const bairro=o.bairro||'';const cep=o.cep?'CEP: '+o.cep:'';return [rua,bairro,cep].filter(Boolean).join(' · ')||'—';})()}</td>
           <td style="font-size:8px;font-family:monospace;font-weight:600">${o.serial||''}</td>
           <td style="font-size:8.5px">${o.tel||'—'}</td>
@@ -1935,15 +1965,12 @@ async function calcularKmRota(){
   try{
     // ── Passo 1: Geocoding dos endereços das OS ───────────────────────
     const geocode=async(addr)=>{
-      // Endereço vem como "Nome Cliente — Rua X, 123 — Bairro — CEP: 00000"
-      // Pegar a parte depois do primeiro "—" que é a rua/número
-      // Se não tiver "—", usar o endereço inteiro
-      const partes = addr.split('—').map(p=>p.trim()).filter(p=>p.length>3);
-      // Filtrar partes que parecem endereço (contém número ou "Rua","Av","Al","R.")
-      const reEndereco = /\b(rua|r\.|av|avenida|al\.|alameda|est\.|estrada|travessa|tv\.|pça|praça|\d{2,})\b/i;
-      const partEndereco = partes.find(p=>reEndereco.test(p)) || partes[1] || partes[0];
-      // Remover CEP e texto extra, manter só rua + número + bairro
-      const semCep = partEndereco.replace(/CEP:?\s*[\d\-]+/gi,'').replace(/\s+/g,' ').trim();
+      // addr = "Rua X, 123 — Bairro — CEP: 00000" (sem nome do cliente)
+      // Pegar só a parte da rua, ignorar bairro e CEP (a API resolve melhor assim)
+      const partes = addr.split('—').map(p=>p.trim()).filter(p=>p.length>2);
+      const reEnd = /\b(rua|r\.|av|avenida|al\b|alameda|est\.|estrada|tv\.|travessa|pça|praça|\d{3,})/i;
+      const rua = partes.find(p=>reEnd.test(p)) || partes[0] || addr;
+      const semCep = rua.replace(/CEP:?\s*[\d\-]+/gi,'').replace(/\s+/g,' ').trim();
       const query = semCep + ', São Paulo, SP';
       const url='https://api.openrouteservice.org/geocode/search?'+
         new URLSearchParams({
@@ -1995,7 +2022,7 @@ async function calcularKmRota(){
     const coords=[BASE_COORDS];
     for(let i=0;i<os.length;i++){
       btnTxt.textContent='Geocodificando '+(i+1)+'/'+os.length+'...';
-      // Montar endereço completo com fallbacks: endereco + bairro + cep
+      // Usar só endereco puro (sem nome do cliente) + bairro + cep
       const o = os[i];
       const endCompleto = [o.endereco, o.bairro, o.cep ? 'CEP '+o.cep : ''].filter(Boolean).join(' — ');
       const coord=await geocode(endCompleto);
