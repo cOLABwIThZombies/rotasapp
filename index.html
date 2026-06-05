@@ -1332,6 +1332,7 @@ function renderBoard(){
 
 function makeCard(o){
   const ts=getTipo(o.tipo);
+  console.log('[CARD] OS:',o.os,'status:',o.status);
   const stClass = o.status==='finalizado'?' st-done':o.status==='pendente'?' st-pendente':o.status==='em_progresso'?' st-progresso':'';
   const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${stClass}`;
   card.draggable=true; card.dataset.id=o.id;
