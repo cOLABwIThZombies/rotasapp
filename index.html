@@ -1489,8 +1489,11 @@ function setRb(field,val){
 }
 
 async function saveDrawer(){
+  console.log('[DRAWER] saveDrawer chamado, drawerOsId=', drawerOsId, 'status=', drwState.status);
   const doSave=async()=>{
-    const o=ordensForDate(currentDate).find(x=>x.id===drawerOsId); if(!o)return;
+    const o=ordensForDate(currentDate).find(x=>x.id===drawerOsId);
+    console.log('[DRAWER] doSave, OS encontrada=', !!o, 'currentDate=', currentDate);
+    if(!o)return;
     const wasFinished=o.status==='finalizado'; // apenas para auditoria
     const updates={
       modelo:document.getElementById('de-modelo').value,
@@ -3495,6 +3498,46 @@ function getDefaultCargos(){
    TOAST
 ═══════════════════════════════════════════════════════════ */
 let tTimer;
+/* ── WINDOW EXPORTS ── */
+window.saveDrawer = saveDrawer;
+window.openDrawer = openDrawer;
+window.closeDrawer = closeDrawer;
+window.deleteOS = deleteOS;
+window.go = go;
+window.setFilter = setFilter;
+window.goToday = goToday;
+window.openModalOS = openModalOS;
+window.saveOS = saveOS;
+window.drwTab = drwTab;
+window.setRb = setRb;
+window.openRomaneio = openRomaneio;
+window.doPrintRom = doPrintRom;
+window.calcularKmRota = calcularKmRota;
+window.clonePrompt = clonePrompt;
+window.clearHF = clearHF;
+window.renderFinalizado = renderFinalizado;
+window.openTecForm = openTecForm;
+window.removeTec = removeTec;
+window.openAuxForm = openAuxForm;
+window.openTrocaAux = openTrocaAux;
+window.openUserForm = openUserForm;
+window.resetUserPassword = resetUserPassword;
+window.removeUser = removeUser;
+window.editCargo = editCargo;
+window.openCargoForm = openCargoForm;
+window.openTipoForm = openTipoForm;
+window.removeTipo = removeTipo;
+window.openPDFPreview = openPDFPreview;
+window.doPrintPDF = doPrintPDF;
+window.exportCSV = exportCSV;
+window.mosTab = mosTab;
+window.mosPecaAdd = mosPecaAdd;
+window.mosPecaRemove = mosPecaRemove;
+window.drwPecaAdd = drwPecaAdd;
+window.drwPecaRemove = drwPecaRemove;
+window.setCurrentDate = setCurrentDate;
+window.confirm2 = confirm2;
+
 function toast(msg,type=''){
   const t=document.getElementById('toast');
   document.getElementById('toast-msg').textContent=msg;
