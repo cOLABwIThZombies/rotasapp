@@ -1150,28 +1150,11 @@ function startStaticListeners(){
 
 function subscribeOrdens(data){
   if(unsubs.ordens){unsubs.ordens();delete unsubs.ordens;}
-  const{onSnapshot,collection,query,orderBy,updateDoc,doc}=getFB();
+  const{onSnapshot,collection,query,orderBy}=getFB();
   unsubs.ordens=onSnapshot(
     query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')),
     async snap=>{
       S.ordens[data]=snap.docs.map(d=>({id:d.id,data,...d.data()}));
-
-      // ── Auto-upgrade: OS em "pendente" que eram futuras e chegaram no dia de hoje
-      // Só roda para o dia atual, não para dias passados ou futuros
-      if(data===TODAY_STR){
-        const paraUpgrade=snap.docs.filter(d=>{
-          const o=d.data();
-          // Só promove se estava pendente (veio de rota futura) — não toca em finalizado
-          return o.status==='pendente';
-        });
-        for(const d of paraUpgrade){
-          try{
-            await updateDoc(doc(getDB(),`rotas/${data}/ordens`,d.id),{status:'em_progresso'});
-          }catch(e){ console.warn('auto-upgrade err:',e); }
-        }
-        // Se houve upgrades o snapshot vai disparar novamente com os dados corretos
-        if(paraUpgrade.length>0) return;
-      }
 
       renderBoard();
       if(data===TODAY_STR) renderTecnicos();
@@ -1353,7 +1336,7 @@ function makeCard(o){
   const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${stClass}`;
   card.draggable=true; card.dataset.id=o.id;
   card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.status==='pendente'?'pendente':o.status==='em_progresso'?'progresso':o.ftc==='sim'?'ftc':''}"></div>
-    <div class="osc-num">${o.os||'—'}</div>
+    <div class="osc-num" style="${o.status==='pendente'?'color:#b91c1c':o.status==='finalizado'?'color:var(--ok)':''}">${o.os||'—'}</div>
     <div class="osc-tipo" style="background:${ts.bg};color:${ts.color}">${o.tipo||'—'}</div>
     <div class="osc-modelo">${o.modelo||'—'}</div>
     <div class="osc-defeito">${o.defeito||'—'}</div>
@@ -1513,7 +1496,8 @@ async function saveDrawer(){
       nome_cliente:document.getElementById('de-nome-cliente')?.value||'',
       endereco:document.getElementById('de-endereco').value,
       complemento:document.getElementById('de-complemento').value,
-      status:drwState.status, ftc:drwState.ftc,
+      status:drwState.status,
+      ftc:drwState.ftc,
       valor:document.getElementById('drw-valor').value,
       pecas:document.getElementById('drw-pecas').value,
       tat:document.getElementById('drw-tat')?.value||'',
@@ -1525,6 +1509,7 @@ async function saveDrawer(){
       updatedAt:getFB().serverTimestamp(), updatedBy:getUID(),
     };
     try{
+      console.log('[SAVE] status enviado:', updates.status, '| drwState.status:', drwState.status);
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
         await logAudit(o.os,'finalizacao','Finalizado','ok');
