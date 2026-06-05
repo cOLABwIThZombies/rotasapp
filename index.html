@@ -204,7 +204,7 @@ button,select,input,textarea{font-family:inherit}
 .pend-nota-body{padding:16px 18px}
 .pend-nota-foot{padding:12px 18px;border-top:1px solid var(--brd);display:flex;justify-content:flex-end;gap:8px}
 .osc.st-pendente .osc-num{color:var(--err)}
-.osc.st-progresso{}
+
 .osc.dragging{opacity:.3;transform:scale(.95)}
 .osc-sdot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--brd2)}
 .osc-sdot.done{background:var(--ok)}.osc-sdot.ftc{background:var(--warn)}
@@ -748,7 +748,7 @@ button,select,input,textarea{font-family:inherit}
     </div>
     <div class="dpanel" id="dp-posrota">
       <div class="dfield" style="margin-top:0"><span class="dlbl">Status</span>
-        <div class="radio-row"><div class="rbtn err" id="rb-pend" onclick="setRb('status','pendente')">Pendente</div><div class="rbtn" id="rb-prog" onclick="setRb('status','em_progresso')" style="border-color:var(--ow)">Em progresso</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
+        <div class="radio-row"><div class="rbtn err" id="rb-pend" onclick="setRb('status','pendente')">Pendente</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
       </div>
       <div class="dfield"><span class="dlbl">FTC (Primeiro Toque Concluído)</span>
         <div class="radio-row"><div class="rbtn" id="rb-ftcn" onclick="setRb('ftc','nao')">Não</div><div class="rbtn warn" id="rb-ftcs" onclick="setRb('ftc','sim')">Sim</div></div>
@@ -1110,21 +1110,21 @@ function startStaticListeners(){
   // Técnicos
   unsubs.tecnicos=onSnapshot(query(collection(db,'tecnicos'),orderBy('ordem','asc')), snap=>{
     S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.ativo!==false);
-    populateSelects(); renderBoard(); renderTecnicos(); renderVeiculos();
+    populateSelects(); if(unsubs.ordens) renderBoard(); renderTecnicos(); renderVeiculos();
     if(document.getElementById('screen-auxiliares').classList.contains('on')) renderAuxiliares();
   });
 
   // Auxiliares
   unsubs.auxiliares=onSnapshot(collection(db,'auxiliares'), snap=>{
     S.auxiliares=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderBoard(); renderTecnicos(); renderVeiculos(); renderAuxiliares();
+    if(unsubs.ordens) renderBoard(); renderTecnicos(); renderVeiculos(); renderAuxiliares();
   });
 
   // Tipos OS
   unsubs.tipos=onSnapshot(query(collection(db,'tipos_os'),orderBy('ordem','asc')), snap=>{
     S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}));
     if(!S.tipos.length) S.tipos=getDefaultTipos();
-    populateSelects(); renderBoard(); renderTipos();
+    populateSelects(); if(unsubs.ordens) renderBoard(); renderTipos();
   });
 
   // Cargos
@@ -1154,8 +1154,11 @@ function subscribeOrdens(data){
   unsubs.ordens=onSnapshot(
     query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')),
     async snap=>{
+      if(window._blockNextSnapshot){
+        window._blockNextSnapshot=false;
+        return;
+      }
       S.ordens[data]=snap.docs.map(d=>({id:d.id,data,...d.data()}));
-
       renderBoard();
       if(data===TODAY_STR) renderTecnicos();
       if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
@@ -1243,7 +1246,6 @@ function visOS(o){
   if(filtro==='lp')return o.prio==='lp';
   if(filtro==='ow')return o.prio==='ow';
   if(filtro==='pend')return o.status==='pendente';
-  if(filtro==='prog')return o.status==='em_progresso';
   return true;
 }
 
@@ -1260,7 +1262,6 @@ function updateStats(){
     <div class="scard cp" onclick="setFilter('lp',document.getElementById('fc-lp'))"><div class="sc-l">LP</div><div class="sc-v" style="color:var(--lp)">${all.filter(o=>o.prio==='lp').length}</div></div>
     <div class="scard cp" onclick="setFilter('ow',document.getElementById('fc-ow'))"><div class="sc-l">OW</div><div class="sc-v" style="color:var(--ow)">${all.filter(o=>o.prio==='ow').length}</div></div>
     <div class="scard cp" onclick="setFilter('pend',document.getElementById('fc-pend'))"><div class="sc-l">Pendentes</div><div class="sc-v" style="color:var(--err)">${all.filter(o=>o.status==='pendente').length}</div></div>
-    <div class="scard cp" onclick="setFilter('prog',document.getElementById('fc-pend'))"><div class="sc-l">Em progresso</div><div class="sc-v" style="color:var(--ow)">${all.filter(o=>o.status==='em_progresso').length}</div></div>
     <div class="scard"><div class="sc-l">Finalizadas</div><div class="sc-v" style="color:var(--ok)">${all.filter(o=>o.status==='finalizado').length}</div></div>
     <div class="scard"><div class="sc-l">Faturamento</div><div class="sc-v" style="color:var(--ok);font-size:13px;margin-top:4px">${fat>0?fmtBRL(fat):'R$ 0'}</div></div>`;
 }
@@ -1332,10 +1333,10 @@ function renderBoard(){
 
 function makeCard(o){
   const ts=getTipo(o.tipo);
-  const stClass = o.status==='finalizado'?' st-done':o.status==='pendente'?' st-pendente':o.status==='em_progresso'?' st-progresso':'';
+  const stClass = o.status==='finalizado'?' st-done':o.status==='pendente'?' st-pendente':'';
   const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${stClass}`;
   card.draggable=true; card.dataset.id=o.id;
-  card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.status==='pendente'?'pendente':o.status==='em_progresso'?'progresso':o.ftc==='sim'?'ftc':''}"></div>
+  card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.status==='pendente'?'pendente':o.ftc==='sim'?'ftc':''}"></div>
     <div class="osc-num" style="${o.status==='pendente'?'color:#b91c1c':o.status==='finalizado'?'color:var(--ok)':''}">${o.os||'—'}</div>
     <div class="osc-tipo" style="background:${ts.bg};color:${ts.color}">${o.tipo||'—'}</div>
     <div class="osc-modelo">${o.modelo||'—'}</div>
@@ -1389,7 +1390,7 @@ async function dropOnLane(techId){
 ═══════════════════════════════════════════════════════════ */
 function openDrawer(id){
   const o=ordensForDate(currentDate).find(x=>x.id===id); if(!o)return;
-  drawerOsId=id; drwState={status:o.status||'em_progresso',ftc:o.ftc||'nao',faturado:o.faturado||'nao'};
+  drawerOsId=id; drwState={status:o.status||'pendente',ftc:o.ftc||'nao',faturado:o.faturado||'nao'};
   const t=S.tecnicos.find(x=>x.id===o.techId);
   const ts=getTipo(o.tipo);
   document.getElementById('drw-num').textContent='#'+o.os;
@@ -1400,7 +1401,7 @@ function openDrawer(id){
     {k:'Período',v:o.periodo==='manha'?'☀ Manhã':'◑ Tarde'},
     {k:'Técnico',v:t?.nome||'—'},
     {k:'CEP',v:o.cep||'—'},
-    {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':o.status==='em_progresso'?'<span class="pill pill-info">Em progresso</span>':'<span class="pill pill-err">Pendente</span>'},
+    {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':'<span class="pill pill-err">Pendente</span>'},
   ].map(r=>`<div class="di"><div class="di-k">${r.k}</div><div class="di-v">${r.v}</div></div>`).join('');
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
   set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
@@ -1469,7 +1470,7 @@ function setRb(field,val){
   drwState[field]=val;
   if(field==='status'){
     document.getElementById('rb-pend').classList.toggle('on',val==='pendente');
-    const rbProg=document.getElementById('rb-prog'); if(rbProg) rbProg.classList.toggle('on',val==='em_progresso');
+
     document.getElementById('rb-done').classList.toggle('on',val==='finalizado');
 
   }
@@ -1509,18 +1510,26 @@ async function saveDrawer(){
       updatedAt:getFB().serverTimestamp(), updatedBy:getUID(),
     };
     try{
+      // Pausar o listener durante o save
+      if(unsubs.ordens){ unsubs.ordens(); delete unsubs.ordens; }
+      // Atualizar localmente imediatamente
+      if(S.ordens[currentDate]){
+        const idx = S.ordens[currentDate].findIndex(x=>x.id===drawerOsId);
+        if(idx>=0) S.ordens[currentDate][idx] = {...S.ordens[currentDate][idx], ...updates};
+        renderBoard();
+      }
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
         await logAudit(o.os,'finalizacao','Finalizado','ok');
       } else if(updates.status==='pendente'){
         await logAudit(o.os,'pendente','Voltou para pendente','err');
         try{ await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate); }catch(_){}
-      } else if(updates.status==='em_progresso'&&o.status!=='em_progresso'){
-        await logAudit(o.os,'edicao','Em progresso','info');
       } else {
         await logAudit(o.os,'edicao','Dados atualizados','gray');
       }
       closeDrawer(); toast('OS salva com sucesso','ok');
+      // Religar listener DEPOIS de tudo — Firestore já processou neste ponto
+      setTimeout(()=>subscribeOrdens(currentDate), 1500);
     }catch(e){toast('Erro ao salvar: '+e.message,'err');}
   };
   if(isFuture(currentDate)) confirmFuture(doSave); else doSave();
@@ -1763,7 +1772,7 @@ async function saveOS(){
       complemento:document.getElementById('m-complemento').value||'',
       pecas_lista:mosPecas.map(({id:_,...p})=>p),
       tat:'',
-      status:isFuture(currentDate)?'pendente':'em_progresso',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
+      status:'pendente',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
       posicao:all.length,
       createdAt:getFB().serverTimestamp(), createdBy:getUID(),
     };
@@ -1972,7 +1981,6 @@ function renderCalMes(wrap){
 function renderCalDia(wrap){
   const os = ordensForDate(currentDate);
   const fin = os.filter(o=>o.status==='finalizado');
-  const prog = os.filter(o=>o.status==='em_progresso');
   const pend = os.filter(o=>o.status==='pendente');
   const fat = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const taxa = os.length?Math.round(fin.length/os.length*100):0;
@@ -2249,7 +2257,7 @@ function clonePrompt(){
     let count=0;
     for(const o of srcOs){
       const{id:_,data:_d,createdAt:_c,updatedAt:_u,...rest}=o;
-      await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),{...rest,status:isFuture(currentDate)?'pendente':'em_progresso',ftc:'nao',valor:'',obs_sel:'',nota:'',posicao:count++,createdAt:getFB().serverTimestamp(),createdBy:getUID()});
+      await getFB().addDoc(getFB().collection(getDB(),`rotas/${currentDate}/ordens`),{...rest,status:'pendente',ftc:'nao',valor:'',obs_sel:'',nota:'',posicao:count++,createdAt:getFB().serverTimestamp(),createdBy:getUID()});
     }
     toast(`${count} OS clonadas para ${fmtShort(currentDate)}`,'ok');
   });
@@ -2805,7 +2813,6 @@ function renderDashboard(){
   const all=getDashOrdens();
   const label=getDashLabel();
   const fin=all.filter(o=>o.status==='finalizado');
-  const prog=all.filter(o=>o.status==='em_progresso');
   const pend=all.filter(o=>o.status==='pendente');
   const fat=fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const fatOS=fin.filter(o=>parseFloat(o.valor)>0);
@@ -2926,7 +2933,6 @@ function renderDashboard(){
             <div class="dash-prod-bar-wrap">
               <div class="dash-prod-bar-track">
                 <div class="dash-prod-bar-done" style="width:${tos.length?Math.round(tf.length/tos.length*100):0}%"></div>
-                <div class="dash-prod-bar-prog" style="width:${tos.length?Math.round(tos.filter(o=>o.status==='em_progresso').length/tos.length*100):0}%"></div>
               </div>
               <span class="dash-prod-pct" style="color:${pct>=70?'var(--ok)':pct>=40?'var(--warn)':'var(--err)'}">${pct}%</span>
             </div>
