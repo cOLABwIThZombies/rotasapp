@@ -193,7 +193,16 @@ button,select,input,textarea{font-family:inherit}
 .osc.prio-ow{border-top-color:var(--ow)}
 .osc.st-done{opacity:.72}
 .osc.st-done .osc-num{color:var(--ok)}
-.osc.st-pendente{opacity:.72}
+.osc.st-pendente{background:#fef2f2;border-color:var(--err)!important;border-width:2px!important}
+.osc-pend-nota{font-size:9.5px;color:var(--err);background:var(--err-bg);border:1px solid #fca5a5;border-radius:4px;padding:2px 6px;margin-top:4px;cursor:pointer;display:flex;align-items:center;gap:3px;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.osc-pend-nota:hover{background:#fef2f2}
+/* Modal comentário pendente */
+.pend-nota-moverlay{display:none;position:fixed;inset:0;background:rgba(26,25,23,.5);z-index:600;align-items:center;justify-content:center}
+.pend-nota-moverlay.on{display:flex}
+.pend-nota-modal{background:var(--surf);border:1px solid var(--brd);border-radius:14px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.pend-nota-hdr{padding:14px 18px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between}
+.pend-nota-body{padding:16px 18px}
+.pend-nota-foot{padding:12px 18px;border-top:1px solid var(--brd);display:flex;justify-content:flex-end;gap:8px}
 .osc.st-pendente .osc-num{color:var(--err)}
 .osc.st-progresso{}
 .osc.dragging{opacity:.3;transform:scale(.95)}
@@ -246,7 +255,8 @@ button,select,input,textarea{font-family:inherit}
 .radio-row{display:flex;gap:6px}
 .rbtn{flex:1;padding:7px;border:1px solid var(--brd);border-radius:6px;font-size:12px;cursor:pointer;background:var(--surf);color:var(--tx2);transition:all .12s;text-align:center}
 .rbtn:hover{background:var(--bg)}.rbtn.on{border-color:var(--tx);background:var(--tx);color:#fff}
-.rbtn.ok.on{border-color:var(--ok);background:var(--ok-bg);color:var(--ok-tx)}
+.rbtn.ok.on{border-color:var(--ok);background:var(--ok);color:#fff}
+.rbtn.err.on{border-color:var(--err);background:var(--err);color:#fff}
 .rbtn.warn.on{border-color:var(--warn);background:var(--warn-bg);color:var(--warn-tx)}
 .drw-foot{padding:12px 18px;border-top:1px solid var(--brd);display:flex;gap:8px;flex-shrink:0}
 .btn-save{flex:1;padding:9px;background:var(--tx);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .12s}
@@ -738,7 +748,7 @@ button,select,input,textarea{font-family:inherit}
     </div>
     <div class="dpanel" id="dp-posrota">
       <div class="dfield" style="margin-top:0"><span class="dlbl">Status</span>
-        <div class="radio-row"><div class="rbtn" id="rb-pend" onclick="setRb('status','pendente')" style="border-color:var(--err)">Pendente</div><div class="rbtn" id="rb-prog" onclick="setRb('status','em_progresso')" style="border-color:var(--ow)">Em progresso</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
+        <div class="radio-row"><div class="rbtn err" id="rb-pend" onclick="setRb('status','pendente')">Pendente</div><div class="rbtn" id="rb-prog" onclick="setRb('status','em_progresso')" style="border-color:var(--ow)">Em progresso</div><div class="rbtn ok" id="rb-done" onclick="setRb('status','finalizado')">Finalizado</div></div>
       </div>
       <div class="dfield"><span class="dlbl">FTC (Primeiro Toque Concluído)</span>
         <div class="radio-row"><div class="rbtn" id="rb-ftcn" onclick="setRb('ftc','nao')">Não</div><div class="rbtn warn" id="rb-ftcs" onclick="setRb('ftc','sim')">Sim</div></div>
@@ -755,7 +765,7 @@ button,select,input,textarea{font-family:inherit}
       <div class="dfield"><span class="dlbl">Obs. pós-rota</span>
         <select class="dsel" id="drw-obs-sel"><option value="">Selecionar...</option><option>Reparo concluído</option><option>Retorno necessário</option><option>Aguardando faturamento</option><option>Peça solicitada</option><option>Cliente ausente</option><option>Reagendar</option><option>Aguardando aprovação</option><option>Sem conserto</option><option>Outro</option></select>
       </div>
-      <div class="dfield"><span class="dlbl">Anotação livre</span><textarea class="dta" id="drw-nota"></textarea></div>
+      <div class="dfield"><span class="dlbl">Anotação livre</span><textarea class="dta" id="drw-nota" placeholder="Digite aqui para salvar como pendente automaticamente..." oninput="autoSaveNotaPend(this)"></textarea></div>
     </div>
     <div class="dpanel" id="dp-pecas">
       <div class="dsect" style="margin-top:0">Peças desta OS</div>
@@ -849,6 +859,39 @@ button,select,input,textarea{font-family:inherit}
     <div class="mhdr"><span class="mtitle" id="mf-title">—</span><button class="mclose" onclick="closeModal('modal-form')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div>
     <div class="mbody s1" id="mf-body"></div>
     <div class="mfoot"><button class="btn-ghost" onclick="closeModal('modal-form')">Cancelar</button><button class="btn-save" id="mf-save">Salvar</button></div>
+  </div>
+</div>
+
+<!-- MODAL COMENTÁRIO PENDENTE -->
+<div class="pend-nota-moverlay" id="modal-pend-nota" onclick="if(event.target===this)fecharNotaPend()">
+  <div class="pend-nota-modal" onclick="event.stopPropagation()">
+    <div class="pend-nota-hdr">
+      <div>
+        <div style="font-size:14px;font-weight:600">Comentário da OS pendente</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:2px" id="pend-nota-os-num">OS #—</div>
+      </div>
+      <button onclick="fecharNotaPend()" style="width:28px;height:28px;border:1px solid var(--brd);border-radius:8px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--tx2)">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="pend-nota-body">
+      <div style="font-size:11px;color:var(--tx3);margin-bottom:8px">Adicione um motivo ou observação para esta OS pendente. Salvo como pendente.</div>
+      <select class="dsel" id="pend-obs-sel" style="width:100%;margin-bottom:8px">
+        <option value="">Selecionar obs...</option>
+        <option>Cliente ausente</option>
+        <option>Reagendar</option>
+        <option>Aguardando peça</option>
+        <option>Aguardando aprovação</option>
+        <option>Retorno necessário</option>
+        <option>Sem conserto</option>
+        <option>Outro</option>
+      </select>
+      <textarea id="pend-nota-txt" class="dta" placeholder="Anotação livre sobre o pendente..." style="min-height:80px;width:100%;box-sizing:border-box"></textarea>
+    </div>
+    <div class="pend-nota-foot">
+      <button class="btn-ghost" onclick="fecharNotaPend()">Cancelar</button>
+      <button class="btn-save" onclick="salvarNotaPend()">Salvar pendente</button>
+    </div>
   </div>
 </div>
 
@@ -1327,6 +1370,18 @@ function makeCard(o){
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
   card.addEventListener('dragend',()=>{card.classList.remove('dragging');draggingId=null;document.querySelectorAll('.empty-slot').forEach(s=>s.classList.remove('dov'))});
+  // Botão de comentário para OS pendentes do dia de hoje
+  if(o.status==='pendente' && o.data === TODAY_STR){
+    const notaBtn = document.createElement('div');
+    notaBtn.className = 'osc-pend-nota';
+    notaBtn.title = 'Editar comentário desta OS pendente';
+    notaBtn.innerHTML = '<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l2 2-6 6H2V8l6-6z"/></svg>'+(o.nota||o.obs_sel||'Adicionar comentário...');
+    notaBtn.addEventListener('click', e => {
+      e.stopPropagation(); // não abrir o drawer
+      abrirNotaPend(o.id, o.os, o.nota||'', o.obs_sel||'');
+    });
+    card.appendChild(notaBtn);
+  }
   card.addEventListener('click',()=>openDrawer(o.id));
   return card;
 }
@@ -1396,19 +1451,44 @@ function openDrawer(id){
   drwTab('info',document.querySelector('.drw-tab'));
 }
 function closeDrawer(){document.getElementById('drw-bg').classList.remove('on');document.getElementById('drawer').classList.remove('on');drawerOsId=null;}
-function drwTab(name,el){document.querySelectorAll('.dpanel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.drw-tab').forEach(t=>t.classList.remove('on'));document.getElementById('dp-'+name).classList.add('on');el.classList.add('on');}
+function drwTab(name,el){
+  document.querySelectorAll('.dpanel').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.drw-tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('dp-'+name).classList.add('on');
+  el.classList.add('on');
+}
+
+// Auto-salvar nota quando OS já é pendente (debounce 1.5s)
+let _notaTimer = null;
+window.autoSaveNotaPend = function(el){
+  if(!drawerOsId || currentDate !== TODAY_STR) return;
+  const o = ordensForDate(currentDate).find(x=>x.id===drawerOsId);
+  if(!o || o.status !== 'pendente') return; // só para OS já pendentes
+  clearTimeout(_notaTimer);
+  // Indicador visual de "digitando..."
+  el.style.borderColor = 'var(--warn)';
+  _notaTimer = setTimeout(async()=>{
+    const nota    = el.value.trim();
+    const obs_sel = document.getElementById('drw-obs-sel')?.value || '';
+    try{
+      await getFB().updateDoc(
+        getFB().doc(getDB(), `rotas/${currentDate}/ordens`, drawerOsId),
+        { nota, obs_sel, status:'pendente', updatedAt:getFB().serverTimestamp(), updatedBy:getUID() }
+      );
+      el.style.borderColor = 'var(--ok)';
+      setTimeout(()=>{ el.style.borderColor = ''; }, 1500);
+    }catch(e){
+      el.style.borderColor = 'var(--err)';
+    }
+  }, 1500);
+};
 function setRb(field,val){
   drwState[field]=val;
   if(field==='status'){
     document.getElementById('rb-pend').classList.toggle('on',val==='pendente');
     const rbProg=document.getElementById('rb-prog'); if(rbProg) rbProg.classList.toggle('on',val==='em_progresso');
     document.getElementById('rb-done').classList.toggle('on',val==='finalizado');
-    // Cores ativas
-    const rbPend=document.getElementById('rb-pend');
-    if(rbPend) rbPend.style.background=val==='pendente'?'var(--err)':'';
-    if(rbPend) rbPend.style.color=val==='pendente'?'#fff':'';
-    if(rbProg) rbProg.style.background=val==='em_progresso'?'var(--ow)':'';
-    if(rbProg) rbProg.style.color=val==='em_progresso'?'#fff':'';
+
   }
   if(field==='ftc'){document.getElementById('rb-ftcn').classList.toggle('on',val==='nao');document.getElementById('rb-ftcs').classList.toggle('on',val==='sim');}
   if(field==='faturado'){document.getElementById('rb-fat-n').classList.toggle('on',val==='nao');document.getElementById('rb-fat-s').classList.toggle('on',val==='sim');}
@@ -1417,7 +1497,7 @@ function setRb(field,val){
 async function saveDrawer(){
   const doSave=async()=>{
     const o=ordensForDate(currentDate).find(x=>x.id===drawerOsId); if(!o)return;
-    const wasFinished=o.status==='finalizado';
+    const wasFinished=o.status==='finalizado'; // apenas para auditoria
     const updates={
       modelo:document.getElementById('de-modelo').value,
       serial:document.getElementById('de-serial')?.value||'',
@@ -1448,9 +1528,9 @@ async function saveDrawer(){
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
         await logAudit(o.os,'finalizacao','Finalizado','ok');
-      } else if(updates.status==='pendente'&&o.status!=='pendente'){
+      } else if(updates.status==='pendente'){
         await logAudit(o.os,'pendente','Voltou para pendente','err');
-        await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate);
+        try{ await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate); }catch(_){}
       } else if(updates.status==='em_progresso'&&o.status!=='em_progresso'){
         await logAudit(o.os,'edicao','Em progresso','info');
       } else {
@@ -1719,6 +1799,20 @@ document.getElementById('modal-os').addEventListener('click',e=>{if(e.target===d
 /* ═══════════════════════════════════════════════════════════
    AUDITORIA / LOG
 ═══════════════════════════════════════════════════════════ */
+async function logPendente(os, motivo, techId, data){
+  try{
+    const tec = S.tecnicos.find(t=>t.id===techId);
+    const now = new Date();
+    await getFB().addDoc(getFB().collection(getDB(),'historico_pendentes'),{
+      os, motivo, techId, tecNome: tec?.nome||'',
+      data, hora: now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      ts: getFB().serverTimestamp(),
+      user: window._currentUser?.nome||'Sistema',
+      uid: getUID()||'',
+    });
+  }catch(e){ console.warn('logPendente err:',e); }
+}
+
 async function logAudit(os,acao,desc,cor){
   try{
     await getFB().addDoc(getFB().collection(getDB(),'auditoria'),{
@@ -2110,6 +2204,58 @@ function renderCalGeral(wrap){
     </div>`;
   wrap.appendChild(geralWrap);
 }
+async function replicarPendentes(){
+  // Buscar OS pendentes dos últimos 30 dias (excluindo hoje)
+  const pendentes = [];
+  const hoje = new Date();
+  for(let i=1; i<=30; i++){
+    const d = new Date(hoje); d.setDate(hoje.getDate()-i);
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const dayOs = ordensForDate(ds);
+    dayOs.filter(o=>o.status==='pendente').forEach(o=>pendentes.push({...o,_srcData:ds}));
+  }
+
+  if(!pendentes.length){
+    toast('Nenhuma OS pendente encontrada nos últimos 30 dias.','warn');
+    return;
+  }
+
+  // Verificar quais OS já existem hoje (pelo número da OS)
+  const jaHoje = ordensForDate(TODAY_STR).map(o=>String(o.os));
+  const novas  = pendentes.filter(o=>!jaHoje.includes(String(o.os)));
+
+  if(!novas.length){
+    toast('Todas as OS pendentes já foram replicadas para hoje.','warn');
+    return;
+  }
+
+  // Deduplicar — manter só a mais recente de cada número de OS
+  const dedup = {};
+  novas.forEach(o=>{ if(!dedup[o.os]||o._srcData>dedup[o.os]._srcData) dedup[o.os]=o; });
+  const paraReplicar = Object.values(dedup);
+
+  confirm2(
+    `Replicar ${paraReplicar.length} OS pendente${paraReplicar.length>1?'s':''}?`,
+    paraReplicar.slice(0,5).map(o=>`#${o.os} · ${S.tecnicos.find(t=>t.id===o.techId)?.nome.split(' ')[0]||'?'} · ${o.bairro||'—'}`).join('<br>')+
+    (paraReplicar.length>5?`<br><span style="color:var(--tx3)">...e mais ${paraReplicar.length-5}</span>`:''),
+    async()=>{
+      let count=0;
+      const totalHoje = ordensForDate(TODAY_STR).length;
+      for(const o of paraReplicar){
+        const{id:_,data:_d,createdAt:_c,updatedAt:_u,_srcData:_s,...rest}=o;
+        await getFB().addDoc(
+          getFB().collection(getDB(),`rotas/${TODAY_STR}/ordens`),
+          {...rest, status:'pendente', ftc:'nao', valor:'', obs_sel: o.obs_sel||'', nota: o.nota||'',
+           posicao:totalHoje+count, createdAt:getFB().serverTimestamp(), createdBy:getUID()}
+        );
+        count++;
+      }
+      toast(`${count} OS pendente${count>1?'s':''} replicada${count>1?'s':''} para hoje`,'ok');
+    },
+    'Replicar'
+  );
+}
+
 function clonePrompt(){
   const src=prompt('Data de origem para clonar (AAAA-MM-DD):');
   if(!src) return;
@@ -2379,6 +2525,40 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
    ══════════════════════════════════════════════════════════════════════ */
 /* ── AJUSTE DE FONTE DO ROMANEIO ── */
 let _romFontSize = 8;
+/* ── COMENTÁRIO OS PENDENTE ── */
+let _pendNotaOsId = null;
+window.abrirNotaPend = function(id, osNum, notaAtual, obsAtual){
+  _pendNotaOsId = id;
+  document.getElementById('pend-nota-os-num').textContent = 'OS #'+osNum;
+  document.getElementById('pend-nota-txt').value = notaAtual || '';
+  document.getElementById('pend-obs-sel').value = obsAtual || '';
+  document.getElementById('modal-pend-nota').classList.add('on');
+  setTimeout(()=>document.getElementById('pend-nota-txt').focus(), 80);
+};
+window.fecharNotaPend = function(){
+  document.getElementById('modal-pend-nota').classList.remove('on');
+  _pendNotaOsId = null;
+};
+window.salvarNotaPend = async function(){
+  if(!_pendNotaOsId) return;
+  const nota    = document.getElementById('pend-nota-txt').value.trim();
+  const obs_sel = document.getElementById('pend-obs-sel').value;
+  const btn = document.querySelector('#modal-pend-nota .btn-save');
+  if(btn){ btn.disabled=true; btn.textContent='Salvando...'; }
+  try{
+    await getFB().updateDoc(
+      getFB().doc(getDB(), `rotas/${TODAY_STR}/ordens`, _pendNotaOsId),
+      { nota, obs_sel, status:'pendente', updatedAt:getFB().serverTimestamp(), updatedBy:getUID() }
+    );
+    toast('Comentário salvo ✓','ok');
+    fecharNotaPend();
+  }catch(e){
+    toast('Erro ao salvar: '+e.message,'err');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Salvar pendente'; }
+  }
+};
+
 window.ajustarFonteRom = function(delta){
   _romFontSize = Math.min(13, Math.max(6, _romFontSize + delta));
   const val = document.getElementById('rom-fonte-val');
