@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GestãoRotas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script type="module">
 import { initializeApp }                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -662,7 +663,7 @@ button,select,input,textarea{font-family:inherit}
     <!-- RELATÓRIOS -->
     <div id="screen-relatorios" class="screen">
       <div class="hdr"><span class="htitle">Relatórios</span><div class="hsp"></div>
-        <select class="inp nm" id="rel-month" style="width:160px" onchange="renderRelatorios()"></select>
+        <select class="inp nm" id="rel-month" style="width:160px" onchange="loadRelMes()"></select>
         <button class="btn-exp" onclick="capturarTela('rel-content','relatorio')" title="Salvar como imagem" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;cursor:pointer;color:var(--tx2);transition:all .12s"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2"/><path d="M4 3V2h6v1"/></svg>Capturar</button>
       </div>
       <div class="rel-wrap" id="rel-content"></div>
@@ -1077,6 +1078,9 @@ window.bootApp = async function(){
   document.getElementById('hdate-txt').textContent=fmtShort(TODAY_STR);
 
   // Iniciar TODOS os listeners em tempo real
+  // Carregar dados base uma vez (sem onSnapshot — evita sobrescrita do board)
+  await Promise.all([loadTecnicos(), loadAuxiliares(), loadTipos()]);
+  // Listeners em tempo real só para cargos, usuários e auditoria
   startStaticListeners();
 
   // Aguardar dados base carregarem antes de montar o board
@@ -1103,31 +1107,32 @@ function waitForData(){
 }
 
 /* ═══════════════════════════════════════════════════════════
-   LISTENERS — todos usam onSnapshot para tempo real
+   LISTENERS — técnicos/auxiliares/tipos carregam UMA vez (getDocs)
+   Só ordens, cargos, usuários e auditoria usam onSnapshot
 ═══════════════════════════════════════════════════════════ */
+async function loadTecnicos(){
+  const{getDocs,collection,query,orderBy}=getFB();
+  const snap=await getDocs(query(collection(getDB(),'tecnicos'),orderBy('ordem','asc')));
+  S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.ativo!==false);
+  populateSelects(); renderTecnicos(); renderVeiculos();
+}
+async function loadAuxiliares(){
+  const{getDocs,collection}=getFB();
+  const snap=await getDocs(collection(getDB(),'auxiliares'));
+  S.auxiliares=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderTecnicos(); renderVeiculos(); renderAuxiliares();
+}
+async function loadTipos(){
+  const{getDocs,collection,query,orderBy}=getFB();
+  const snap=await getDocs(query(collection(getDB(),'tipos_os'),orderBy('ordem','asc')));
+  S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}));
+  if(!S.tipos.length) S.tipos=getDefaultTipos();
+  populateSelects(); renderTipos();
+}
+
 function startStaticListeners(){
   const{onSnapshot,collection,query,orderBy,doc}=getFB();
   const db=getDB();
-
-  // Técnicos
-  unsubs.tecnicos=onSnapshot(query(collection(db,'tecnicos'),orderBy('ordem','asc')), snap=>{
-    S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.ativo!==false);
-    populateSelects(); renderTecnicos(); renderVeiculos();
-    if(document.getElementById('screen-auxiliares').classList.contains('on')) renderAuxiliares();
-  });
-
-  // Auxiliares
-  unsubs.auxiliares=onSnapshot(collection(db,'auxiliares'), snap=>{
-    S.auxiliares=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderTecnicos(); renderVeiculos(); renderAuxiliares();
-  });
-
-  // Tipos OS
-  unsubs.tipos=onSnapshot(query(collection(db,'tipos_os'),orderBy('ordem','asc')), snap=>{
-    S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}));
-    if(!S.tipos.length) S.tipos=getDefaultTipos();
-    populateSelects(); renderTipos();
-  });
 
   // Cargos
   unsubs.cargos=onSnapshot(collection(db,'cargos'), snap=>{
@@ -1190,6 +1195,7 @@ function go(name,el){
   document.getElementById('screen-'+name).classList.add('on');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
   if(el) el.classList.add('on');
+  if(name==='relatorios') loadRelMes();
   // Lazy renders para telas que não são ao vivo
   if(name==='relatorios') renderRelatorios();
   if(name==='calendario') renderCalendario();
@@ -2995,7 +3001,7 @@ function renderRelatorios(){
   wrap.innerHTML=`
   <div class="export-row">
     <button class="btn-exp p" onclick="openPDFPreview()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2v7M4 6l3 3 3-3"/><path d="M2 11h10"/></svg>Gerar PDF — ${mesNome}</button>
-    <button class="btn-exp" onclick="exportCSV()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M5 7h4M7 5v4"/></svg>Exportar CSV</button>
+    <button class="btn-exp" onclick="exportCSV()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M5 7h4M7 5v4"/></svg>Exportar Excel (.xlsx)</button>
   </div>
   <div class="rel-kpis">
     <div class="kpi"><div class="kpi-l">Total OS</div><div class="kpi-v">${all.length}</div><div class="kpi-s">${mesNome}</div></div>
@@ -3110,18 +3116,119 @@ function doPrintPDF(){
 /* ═══════════════════════════════════════════════════════════
    CSV
 ═══════════════════════════════════════════════════════════ */
+/* ── CARREGAR MÊS DOS RELATÓRIOS DO FIRESTORE ── */
+let _relLoading = false;
+async function loadRelMes(){
+  if(_relLoading) return;
+  const mv = document.getElementById('rel-month')?.value ||
+    `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+  // Verificar se já temos dados deste mês carregados
+  const jaTemDados = Object.keys(S.ordens).some(d=>d.startsWith(mv));
+  if(jaTemDados){ renderRelatorios(); return; }
+  _relLoading = true;
+  const wrap = document.getElementById('rel-content');
+  if(wrap) wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tx3)"><div class="big-spin"></div><span style="font-size:13px">Carregando dados de ${mv}...</span></div>`;
+  try{
+    const {getDocs,collection,query,orderBy} = getFB();
+    // Buscar todos os dias do mês
+    const [yr,mn] = mv.split('-').map(Number);
+    const diasNoMes = new Date(yr,mn,0).getDate();
+    for(let d=1;d<=diasNoMes;d++){
+      const ds = `${mv}-${String(d).padStart(2,'0')}`;
+      if(S.ordens[ds]) continue; // já carregado
+      try{
+        const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
+        S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
+      }catch(e){ S.ordens[ds]=[]; }
+    }
+    renderRelatorios();
+  }finally{ _relLoading=false; }
+}
+
 function exportCSV(){
-  const rows=[['OS','Tipo','Modelo','Defeito','Período','Bairro','CEP','Prioridade','Técnico','Auxiliar','Status','FTC','Peças','Valor','Obs.','Data']];
-  Object.values(S.ordens).flat().forEach(o=>{
-    const t=S.tecnicos.find(x=>x.id===o.techId);
-    const aux=getAux(o.techId);
-    rows.push([o.os,o.tipo,o.modelo,o.defeito,o.periodo,o.bairro,o.cep,(o.prio||'').toUpperCase(),t?.nome||'',aux?.nome||'',o.status,o.ftc,o.pecas,o.valor,o.obs_sel,o.data]);
+  const mv = document.getElementById('rel-month')?.value ||
+    `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+  const [yr,mn] = mv.split('-').map(Number);
+  const mesNome = MESES[mn-1]+'-'+yr;
+
+  // Linhas de dados
+  const dados = Object.values(S.ordens).flat()
+    .filter(o=>o.data&&o.data.startsWith(mv))
+    .sort((a,b)=>a.data.localeCompare(b.data)||(a.posicao-b.posicao));
+
+  const STATUS_MAP = {'finalizado':'Finalizado','pendente':'Pendente','em_progresso':'Em progresso'};
+  const PERIODO_MAP = {'manha':'Manhã','tarde':'Tarde'};
+  const PRIO_MAP = {'lp':'LP','ow':'OW'};
+
+  // Construir linhas
+  const rows = dados.map(o=>{
+    const t = S.tecnicos.find(x=>x.id===o.techId);
+    const aux = getAux(o.techId);
+    const valor = parseFloat(o.valor)||0;
+    return {
+      'OS': o.os||'',
+      'Data': o.data||'',
+      'Período': PERIODO_MAP[o.periodo]||o.periodo||'',
+      'Prioridade': PRIO_MAP[o.prio]||'',
+      'Tipo': o.tipo||'',
+      'Modelo': o.modelo||'',
+      'Defeito': o.defeito||'',
+      'Bairro': o.bairro||'',
+      'CEP': o.cep||'',
+      'Nome/Endereço': o.endereco||'',
+      'Técnico': t?.nome||'',
+      'Auxiliar': aux?.nome||'',
+      'Status': STATUS_MAP[o.status]||o.status||'',
+      'FTC': o.ftc==='sim'?'Sim':'Não',
+      'Peças': o.pecas==='sim'?'Sim':'Não',
+      'Valor (R$)': valor||'',
+      'Obs. Pós-rota': o.obs_sel||'',
+      'Anotação': o.nota||'',
+    };
   });
-  const csv=rows.map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='rotas-'+TODAY_STR+'.csv'; a.click();
-  toast('CSV exportado','ok');
+
+  // Usar SheetJS se disponível, senão CSV
+  if(window.XLSX){
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Ajustar larguras das colunas
+    ws['!cols'] = [
+      {wch:14},{wch:12},{wch:8},{wch:10},{wch:18},{wch:18},{wch:18},
+      {wch:16},{wch:10},{wch:30},{wch:22},{wch:18},{wch:14},{wch:6},
+      {wch:6},{wch:12},{wch:20},{wch:30}
+    ];
+    // Negrito no cabeçalho
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for(let C=range.s.c; C<=range.e.c; C++){
+      const cell = ws[XLSX.utils.encode_cell({r:0,c:C})];
+      if(cell) cell.s = {font:{bold:true},fill:{fgColor:{rgb:'D0D0D0'}}};
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rotas '+mesNome);
+    // Adicionar aba de resumo
+    const resumo = [
+      {Item:'Total OS', Valor:dados.length},
+      {Item:'Finalizadas', Valor:dados.filter(o=>o.status==='finalizado').length},
+      {Item:'Pendentes', Valor:dados.filter(o=>o.status==='pendente').length},
+      {Item:'FTC', Valor:dados.filter(o=>o.ftc==='sim').length},
+      {Item:'Com peças', Valor:dados.filter(o=>o.pecas==='sim').length},
+      {Item:'Faturamento total', Valor:dados.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)},
+      {Item:'LP', Valor:dados.filter(o=>o.prio==='lp').length},
+      {Item:'OW', Valor:dados.filter(o=>o.prio==='ow').length},
+    ];
+    const wsR = XLSX.utils.json_to_sheet(resumo);
+    wsR['!cols'] = [{wch:22},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, wsR, 'Resumo');
+    XLSX.writeFile(wb, `Rotas-${mesNome}.xlsx`);
+    toast('Excel exportado com '+dados.length+' OS','ok');
+  } else {
+    // Fallback CSV
+    const header = Object.keys(rows[0]||{});
+    const csv = [header, ...rows.map(r=>header.map(k=>r[k]))].map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+    a.download=`Rotas-${mesNome}.csv`; a.click();
+    toast('CSV exportado','ok');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
