@@ -656,7 +656,15 @@ button,select,input,textarea{font-family:inherit}
 
     <!-- AUDITORIA -->
     <div id="screen-auditoria" class="screen">
-      <div class="hdr"><span class="htitle">Auditoria</span><div class="hsp"></div><span id="audit-cnt" style="font-size:12px;color:var(--tx3)"></span></div>
+      <div class="hdr">
+        <span class="htitle">Auditoria</span>
+        <div class="hsp"></div>
+        <div class="sw" style="margin-right:6px">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M10 10l3 3"/></svg>
+          <input class="si" id="audit-search" placeholder="Buscar OS..." oninput="renderAuditoria()" style="width:160px"/>
+        </div>
+        <span id="audit-cnt" style="font-size:12px;color:var(--tx3)"></span>
+      </div>
       <div class="audit-wrap" id="audit-wrap"></div>
     </div>
 
@@ -1093,6 +1101,8 @@ window.bootApp = async function(){
   // Selects do mês para relatório
   buildMonthSelect();
   toast('Bem-vindo, '+u.nome.split(' ')[0]+'!','ok');
+  // Carregar histórico completo em background — alimenta calendário e relatórios
+  setTimeout(()=>carregarHistoricoCompleto(), 1500);
 };
 
 /* Aguarda técnicos e tipos carregarem (max 5s) */
@@ -1195,7 +1205,8 @@ function go(name,el){
   document.getElementById('screen-'+name).classList.add('on');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
   if(el) el.classList.add('on');
-  if(name==='relatorios') loadRelMes();
+  if(name==='relatorios'){ renderRelatorios(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
+  if(name==='calendario'){ renderCalendario(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
   // Lazy renders para telas que não são ao vivo
   if(name==='relatorios') renderRelatorios();
   if(name==='calendario') renderCalendario();
@@ -1824,10 +1835,11 @@ async function logPendente(os, motivo, techId, data){
   }catch(e){ console.warn('logPendente err:',e); }
 }
 
-async function logAudit(os,acao,desc,cor){
+async function logAudit(os,acao,desc,cor,dataOS){
   try{
     await getFB().addDoc(getFB().collection(getDB(),'auditoria'),{
       os:String(os||''), acao, desc, cor,
+      data: dataOS || currentDate || TODAY_STR,
       user:window._currentUser?.nome||'Sistema',
       uid:getUID()||'',
       hora:nowTime(),
@@ -1837,17 +1849,65 @@ async function logAudit(os,acao,desc,cor){
 }
 function renderAuditoria(){
   const wrap=document.getElementById('audit-wrap'); if(!wrap)return;
-  const AC={ok:['var(--ok-bg)','var(--ok-tx)'],info:['var(--ow-bg)','var(--ow-tx)'],warn:['var(--warn-bg)','var(--warn-tx)'],err:['var(--lp-bg)','var(--lp-tx)'],gray:['var(--surf2)','var(--tx2)']};
-  const AL={movimentacao:'Movimentação',criacao:'Criação',finalizacao:'Finalização',edicao:'Edição',remocao:'Remoção'};
-  wrap.innerHTML=''; document.getElementById('audit-cnt').textContent=S.auditoria.length+' registros';
-  S.auditoria.forEach(a=>{
+  const q=(document.getElementById('audit-search')?.value||'').trim().toLowerCase();
+  const AC={ok:['var(--ok-bg)','var(--ok-tx)'],info:['var(--ow-bg)','var(--ow-tx)'],warn:['var(--warn-bg)','var(--warn-tx)'],err:['var(--err-bg)','var(--err-tx)'],gray:['var(--surf2)','var(--tx2)']};
+  const AL={movimentacao:'Movimentação',criacao:'Criação',finalizacao:'Finalização',edicao:'Edição',remocao:'Remoção',pendente:'Pendente'};
+  wrap.innerHTML='';
+
+  const filtered = S.auditoria.filter(a=>!q||String(a.os).includes(q)||String(a.desc||'').toLowerCase().includes(q));
+  document.getElementById('audit-cnt').textContent=filtered.length+' registros';
+
+  // Se buscando por OS específica, mostrar resumo de todas as datas
+  if(q && filtered.length > 0){
+    const osNum = q.replace(/\D/g,'');
+    if(osNum){
+      // Buscar em S.ordens todas as datas onde esta OS aparece
+      const datas = Object.entries(S.ordens)
+        .filter(([data,ordens])=>ordens.some(o=>String(o.os)===osNum))
+        .map(([data,ordens])=>{
+          const o = ordens.find(x=>String(x.os)===osNum);
+          return {data, status:o?.status||'', techId:o?.techId||''};
+        })
+        .sort((a,b)=>b.data.localeCompare(a.data));
+      if(datas.length>0){
+        const STATUS={finalizado:'Finalizado',pendente:'Pendente',em_progresso:'Em progresso'};
+        const COR={finalizado:'var(--ok)',pendente:'var(--err)',em_progresso:'var(--ow)'};
+        const resumo=document.createElement('div');
+        resumo.style.cssText='background:var(--surf2);border:1px solid var(--brd);border-radius:var(--rl);padding:12px 14px;margin-bottom:12px';
+        resumo.innerHTML=`
+          <div style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+            OS #${osNum} — aparece em ${datas.length} data${datas.length>1?'s':''}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${datas.map(d=>{
+              const tec=S.tecnicos.find(t=>t.id===d.techId);
+              return `<div style="background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:5px 10px;font-size:11.5px;display:flex;align-items:center;gap:6px;cursor:pointer"
+                onclick="setCurrentDate('${d.data}');go('rotas',document.querySelector('.ni.on'))">
+                <span style="font-weight:600">${fmtShort(d.data)}</span>
+                <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${COR[d.status]||'#eee'}20;color:${COR[d.status]||'#666'};font-weight:600">${STATUS[d.status]||d.status}</span>
+                ${tec?`<span style="font-size:10px;color:var(--tx3)">${tec.nome.split(' ')[0]}</span>`:''}
+              </div>`;
+            }).join('')}
+          </div>`;
+        wrap.appendChild(resumo);
+      }
+    }
+  }
+
+  // Listar registros de auditoria filtrados
+  filtered.forEach(a=>{
     const[bg,cl]=AC[a.cor||'gray']||AC.gray;
     const el=document.createElement('div'); el.className='audit-item';
-    el.innerHTML=`<span class="audit-tag" style="background:${bg};color:${cl}">${AL[a.acao]||a.acao}</span>
-      <span class="audit-txt">OS ${a.os} — ${a.desc||''} <span style="color:var(--tx3);font-size:11px">· ${a.user}</span></span>
+    const dataStr = a.data ? `<span style="font-family:'DM Mono',monospace;font-size:10.5px;color:var(--tx3);background:var(--surf2);padding:1px 6px;border-radius:3px">${fmtShort(a.data)}</span>` : '';
+    el.innerHTML=`
+      <span class="audit-tag" style="background:${bg};color:${cl}">${AL[a.acao]||a.acao}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;flex-shrink:0">#${a.os}</span>
+      ${dataStr}
+      <span class="audit-txt">${a.desc||''} <span style="color:var(--tx3);font-size:11px">· ${a.user}</span></span>
       <span class="audit-meta">${a.hora||'—'}</span>`;
     wrap.appendChild(el);
   });
+  if(!filtered.length) wrap.innerHTML='<div style="text-align:center;padding:40px;color:var(--tx3);font-size:13px">Nenhum registro encontrado.</div>';
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3116,33 +3176,66 @@ function doPrintPDF(){
 /* ═══════════════════════════════════════════════════════════
    CSV
 ═══════════════════════════════════════════════════════════ */
+/* ── CARREGAMENTO HISTÓRICO CENTRAL ── */
+// Carrega todos os meses do ano atual + mês anterior automaticamente no boot
+// alimenta S.ordens para calendário, relatório e dashboard sem clique
+let _carregandoHistorico = false;
+async function carregarHistoricoCompleto(){
+  if(_carregandoHistorico) return;
+  _carregandoHistorico = true;
+  const {getDocs,collection,query,orderBy} = getFB();
+  const hoje = new Date();
+  // Carregar mês atual + 11 meses anteriores (1 ano completo)
+  for(let i=0; i<12; i++){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    const mv = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const diasNoMes = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    for(let dia=1; dia<=diasNoMes; dia++){
+      const ds = `${mv}-${String(dia).padStart(2,'0')}`;
+      if(S.ordens[ds] !== undefined) continue; // já carregado
+      // Não buscar datas futuras
+      if(ds > TODAY_STR){ S.ordens[ds]=[]; continue; }
+      try{
+        const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
+        S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
+      }catch(e){ S.ordens[ds]=[]; }
+    }
+    // Atualizar calendário e relatório a cada mês carregado
+    if(document.getElementById('screen-calendario')?.classList.contains('on')) renderCalendario();
+    if(document.getElementById('screen-relatorios')?.classList.contains('on')) renderRelatorios();
+    if(document.getElementById('screen-dashboard')?.classList.contains('on')) renderDashboard();
+  }
+  _carregandoHistorico = false;
+  // Renderizar tudo após carregar
+  renderCalendario();
+  renderRelatorios();
+}
+
 /* ── CARREGAR MÊS DOS RELATÓRIOS DO FIRESTORE ── */
 let _relLoading = false;
 async function loadRelMes(){
-  if(_relLoading) return;
+  // Se ainda está carregando histórico, só renderizar o que tem
+  renderRelatorios();
+  // Se o mês selecionado não tem dados ainda, carregar especificamente
   const mv = document.getElementById('rel-month')?.value ||
     `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-  // Verificar se já temos dados deste mês carregados
-  const jaTemDados = Object.keys(S.ordens).some(d=>d.startsWith(mv));
-  if(jaTemDados){ renderRelatorios(); return; }
-  _relLoading = true;
-  const wrap = document.getElementById('rel-content');
-  if(wrap) wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tx3)"><div class="big-spin"></div><span style="font-size:13px">Carregando dados de ${mv}...</span></div>`;
-  try{
+  const jaTemDados = Object.keys(S.ordens).some(d=>d.startsWith(mv) && S.ordens[d].length>0);
+  if(!jaTemDados){
     const {getDocs,collection,query,orderBy} = getFB();
-    // Buscar todos os dias do mês
     const [yr,mn] = mv.split('-').map(Number);
     const diasNoMes = new Date(yr,mn,0).getDate();
+    const wrap = document.getElementById('rel-content');
+    if(wrap && !wrap.querySelector('.rel-kpis')) wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--tx3)"><div class="big-spin"></div><span style="font-size:13px">Carregando ${mv}...</span></div>`;
     for(let d=1;d<=diasNoMes;d++){
       const ds = `${mv}-${String(d).padStart(2,'0')}`;
-      if(S.ordens[ds]) continue; // já carregado
+      if(S.ordens[ds]!==undefined) continue;
       try{
         const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
         S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
       }catch(e){ S.ordens[ds]=[]; }
     }
     renderRelatorios();
-  }finally{ _relLoading=false; }
+  }
 }
 
 function exportCSV(){
