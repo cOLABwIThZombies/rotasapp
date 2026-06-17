@@ -779,14 +779,20 @@ button,select,input,textarea{font-family:inherit}
     </div>
     <div class="dpanel" id="dp-pecas">
       <div class="dsect" style="margin-top:0">Peças desta OS</div>
-      <div class="parts-input-row" style="grid-template-columns:1fr 90px auto;margin-bottom:10px">
-        <div><span class="dlbl">Código</span><input class="dinp" id="drw-peca-codigo" placeholder="Ex: BN96-52542A" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
-        <div><span class="dlbl">Qtd</span><input class="dinp" id="drw-peca-qty" type="number" value="1" min="1" style="text-align:center" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
-        <button class="btn-save" style="height:36px;padding:0 12px;align-self:flex-end;white-space:nowrap" onclick="drwPecaAdd()">+ Add</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--surf2);border-radius:var(--r)">
+        <input type="checkbox" id="drw-sem-peca" onchange="toggleSemPeca(this.checked)" style="width:16px;height:16px;cursor:pointer">
+        <label for="drw-sem-peca" style="font-size:12.5px;cursor:pointer;flex:1">Visita sem peça <span style="color:var(--tx3);font-size:11px">(marca esta OS como atendida sem uso de peças)</span></label>
       </div>
-      <div class="dfield" style="margin-bottom:8px"><span class="dlbl">Descrição</span><input class="dinp" id="drw-peca-desc" placeholder="Nome da peça (opcional)"></div>
-      <div id="drw-parts-wrap"><div class="parts-empty" style="padding:20px">🔩 Nenhuma peça adicionada.</div></div>
-      <div class="parts-summary" id="drw-parts-summary"></div>
+      <div id="drw-pecas-form-wrap">
+        <div class="parts-input-row" style="grid-template-columns:1fr 90px auto;margin-bottom:10px">
+          <div><span class="dlbl">Código</span><input class="dinp" id="drw-peca-codigo" placeholder="Ex: BN96-52542A" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
+          <div><span class="dlbl">Qtd</span><input class="dinp" id="drw-peca-qty" type="number" value="1" min="1" style="text-align:center" onkeydown="if(event.key==='Enter'){event.preventDefault();drwPecaAdd()}"></div>
+          <button class="btn-save" style="height:36px;padding:0 12px;align-self:flex-end;white-space:nowrap" onclick="drwPecaAdd()">+ Add</button>
+        </div>
+        <div class="dfield" style="margin-bottom:8px"><span class="dlbl">Descrição</span><input class="dinp" id="drw-peca-desc" placeholder="Nome da peça (opcional)"></div>
+        <div id="drw-parts-wrap"><div class="parts-empty" style="padding:20px">🔩 Nenhuma peça adicionada.</div></div>
+        <div class="parts-summary" id="drw-parts-summary"></div>
+      </div>
     </div>
     <div class="dpanel" id="dp-hist"><div class="dsect" style="margin-top:0">Linha do tempo</div><div id="drw-audit-list"></div></div>
   </div>
@@ -1438,6 +1444,13 @@ function openDrawer(id){
   // Carregar peças da OS
   drwPecas=(o.pecas_lista||[]).map(p=>({...p,id:Date.now()+Math.random()}));
   drwPecasRender();
+  // Checkbox "Visita sem peça" — marcado se pecas=nao e nenhuma peça na lista
+  const semPecaChk = document.getElementById('drw-sem-peca');
+  if(semPecaChk){
+    const semPeca = (o.pecas!=='sim') && !drwPecas.length;
+    semPecaChk.checked = semPeca;
+    toggleSemPeca(semPeca);
+  }
   document.getElementById('de-periodo').value=o.periodo||'manha';
   document.getElementById('de-tec').value=o.techId||'';
   document.getElementById('de-tipo').value=o.tipo||'';
@@ -1748,6 +1761,19 @@ function drwPecaAdd(){
   document.getElementById('drw-peca-qty').value='1';
   document.getElementById('drw-peca-codigo').focus();
   drwPecasRender();
+}
+
+function toggleSemPeca(checked){
+  const wrap = document.getElementById('drw-pecas-form-wrap');
+  if(checked){
+    // Limpar peças adicionadas e travar o formulário
+    drwPecas = [];
+    drwPecasRender();
+    document.getElementById('drw-pecas').value = 'nao';
+    if(wrap) wrap.style.display = 'none';
+  } else {
+    if(wrap) wrap.style.display = '';
+  }
 }
 
 function drwPecaRemove(id){
@@ -2388,9 +2414,25 @@ function renderFinalizado(){
 ═══════════════════════════════════════════════════════════ */
 function openRomaneio(tecId){
   const t=S.tecnicos.find(x=>x.id===tecId); if(!t)return;
+  const os=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+
+  // Verificar OS sem peças cadastradas
+  const semPecas = os.filter(o => o.pecas!=='sim');
+  if(semPecas.length > 0){
+    confirm2(
+      'OS sem peças identificadas',
+      `${semPecas.length} OS sem peças cadastradas: ${semPecas.map(o=>'#'+o.os).join(', ')}.<br>Deseja continuar e gerar o romaneio mesmo assim?`,
+      ()=>_doOpenRomaneio(tecId, t, os),
+      'Continuar mesmo assim'
+    );
+    return;
+  }
+  _doOpenRomaneio(tecId, t, os);
+}
+
+function _doOpenRomaneio(tecId, t, os){
   window._romTecId=tecId; // Guardar para calcularKmRota()
   const aux=getAux(tecId);
-  const os=ordensForDate(currentDate).filter(o=>o.techId===tecId).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
   window._romOrdens=[...os]; // cópia editável da ordem
   const ordensKm=os.map(o=>o.km).find(k=>k&&k.trim())||'';
   document.getElementById('rom-tec-title').textContent=t.nome;
@@ -3734,6 +3776,7 @@ window.mosTab = mosTab;
 window.mosPecaAdd = mosPecaAdd;
 window.mosPecaRemove = mosPecaRemove;
 window.drwPecaAdd = drwPecaAdd;
+window.toggleSemPeca = toggleSemPeca;
 window.drwPecaRemove = drwPecaRemove;
 window.setCurrentDate = setCurrentDate;
 window.confirm2 = confirm2;
