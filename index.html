@@ -716,7 +716,10 @@ button,select,input,textarea{font-family:inherit}
 
     <!-- TIPOS OS -->
     <div id="screen-tipos" class="screen">
-      <div class="hdr"><span class="htitle">Tipos de OS</span><div class="hsp"></div><button class="btn-new" onclick="openTipoForm()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Novo tipo</button></div>
+      <div class="hdr"><span class="htitle">Tipos de OS</span><div class="hsp"></div>
+        <button class="btn-ghost" onclick="restaurarTiposPadrao()" style="font-size:12px;padding:5px 11px;color:var(--err);border-color:var(--err)" title="Recriar os 14 tipos originais no Firestore">↺ Restaurar tipos padrão</button>
+        <button class="btn-new" onclick="openTipoForm()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Novo tipo</button>
+      </div>
       <div class="crud-wrap"><div class="crud-table"><table style="width:100%;border-collapse:collapse"><thead><tr class="cthead"><th>Tipo</th><th>Aparência</th><th style="text-align:right">Ações</th></tr></thead><tbody class="ctbody" id="tipo-body"></tbody></table></div></div>
     </div>
   </main>
@@ -3711,6 +3714,38 @@ function removeTipo(id){
 /* ═══════════════════════════════════════════════════════════
    DEFAULTS (fallback offline)
 ═══════════════════════════════════════════════════════════ */
+async function restaurarTiposPadrao(){
+  const padrao = getDefaultTipos();
+  const jaExistentes = S.tipos.map(t=>t.label.toLowerCase().trim());
+  const faltando = padrao.filter(t=>!jaExistentes.includes(t.label.toLowerCase().trim()));
+
+  if(faltando.length===0){
+    toast('Todos os tipos padrão já estão presentes.','warn');
+    return;
+  }
+
+  confirm2(
+    'Restaurar tipos de OS padrão?',
+    `Serão recriados ${faltando.length} tipo(s) que estão faltando: ${faltando.map(t=>t.label).join(', ')}.<br>Tipos já existentes não serão duplicados.`,
+    async()=>{
+      const {addDoc,collection} = getFB();
+      let count=0;
+      for(const t of faltando){
+        try{
+          await addDoc(collection(getDB(),'tipos_os'),{
+            label:t.label, bg:t.bg, color:t.color, ordem:t.ordem
+          });
+          count++;
+        }catch(e){ console.warn('Erro ao restaurar tipo:',t.label,e); }
+      }
+      toast(`${count} tipo(s) de OS restaurado(s) com sucesso`,'ok');
+      // Recarregar a lista de tipos
+      await loadTipos();
+    },
+    'Restaurar'
+  );
+}
+
 function getDefaultTipos(){return[
   {id:'t1',label:'1ª Visita LP',bg:'#fdf0eb',color:'#7a2e14',ordem:1},
   {id:'t2',label:'Orç. Aprovado',bg:'#e4f7f1',color:'#085041',ordem:2},
@@ -3777,6 +3812,7 @@ window.mosPecaAdd = mosPecaAdd;
 window.mosPecaRemove = mosPecaRemove;
 window.drwPecaAdd = drwPecaAdd;
 window.toggleSemPeca = toggleSemPeca;
+window.restaurarTiposPadrao = restaurarTiposPadrao;
 window.drwPecaRemove = drwPecaRemove;
 window.setCurrentDate = setCurrentDate;
 window.confirm2 = confirm2;
