@@ -779,13 +779,6 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Modelo</span><input class="dinp" id="de-modelo"></div>
         <div class="dfield"><span class="dlbl">Serial</span><input class="dinp" id="de-serial" placeholder="N/S do produto"></div>
         <div class="dfield"><span class="dlbl">Defeito</span><input class="dinp" id="de-defeito"></div>
-        <div style="grid-column:1/-1">
-          <button class="btn-ia" style="margin-bottom:10px" onclick="analisarComIA('de')" id="de-btn-ia">
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
-            Analisar com IA
-          </button>
-          <div id="de-ia-result" class="ia-result" style="margin-bottom:12px"></div>
-        </div>
         <div class="dfield"><span class="dlbl">Solução</span><input class="dinp" id="de-solucao"></div>
         <div class="dfield"><span class="dlbl">Bairro</span><input class="dinp" id="de-bairro"></div>
         <div class="dfield"><span class="dlbl">CEP</span><input class="dinp" id="de-cep"></div>
@@ -870,11 +863,6 @@ button,select,input,textarea{font-family:inherit}
         <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
         <div><label class="lbl">Serial</label><input class="inp nm" id="m-serial" placeholder="N/S do produto"></div>
         <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
-        <button class="btn-ia mfull" style="justify-self:start" onclick="analisarComIA('m')" id="m-btn-ia">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
-          Analisar com IA
-        </button>
-        <div id="m-ia-result" class="ia-result"></div>
         <div><label class="lbl">Possível solução</label><input class="inp nm" id="m-solucao"></div>
         <div><label class="lbl">Bairro</label><input class="inp nm" id="m-bairro"></div>
         <div><label class="lbl">CEP</label><input class="inp nm" id="m-cep"></div>
@@ -1388,14 +1376,14 @@ Para CADA ordem de serviço, avalie rapidamente se há algum risco ou observaç�
 4. Qualquer inconsistência entre modelo/defeito/solução anotada que pareça estranha.
 
 Responda APENAS em formato JSON válido, sem markdown, sem texto antes ou depois, neste formato exato:
-{"itens":[{"os":"numero_da_os","tipo":"warn|ok|info","texto":"observação curta e objetiva em português"}]}
+{"itens":[{"os":"numero_da_os","tipo":"warn|ok|info","texto":"observação curta em português, máximo 15 palavras"}]}
 
 Regras:
 - tipo "warn" = risco real, atenção necessária (ex: passível de retirada, peça provavelmente necessária)
 - tipo "ok" = OS simples, sem problemas aparentes, pode ser resolvida rápido
 - tipo "info" = observação neutra, não crítica
-- Inclua TODAS as OS da lista, uma entrada para cada uma.
-- Seja direto e objetivo, máximo 2 linhas por item.`;
+- Inclua TODAS as OS da lista, uma entrada para cada uma, sem pular nenhuma.
+- Seja extremamente conciso — máximo 15 palavras por item, isso é obrigatório.`;
 
   try{
     const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
@@ -1403,7 +1391,7 @@ Regras:
       headers: {'Content-Type':'application/json', 'x-goog-api-key': GEMINI_API_KEY},
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2000, responseMimeType: 'application/json' }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 4000, responseMimeType: 'application/json' }
       })
     });
     if(!resp.ok){
@@ -1411,11 +1399,26 @@ Regras:
       throw new Error(errData.error?.message || `Erro HTTP ${resp.status}`);
     }
     const data = await resp.json();
+    const finishReason = data.candidates?.[0]?.finishReason;
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
     let parsed;
-    try{ parsed = JSON.parse(texto); }catch(e){ throw new Error('IA retornou formato inválido.'); }
+    try{
+      parsed = JSON.parse(texto);
+    }catch(e){
+      // Tentar recuperar JSON truncado: cortar no último item completo
+      const lastBrace = texto.lastIndexOf('}');
+      const recovered = texto.slice(0, lastBrace+1) + ']}';
+      try{ parsed = JSON.parse(recovered); }
+      catch(e2){ throw new Error('IA retornou formato inválido ou resposta foi cortada (tente novamente).'); }
+    }
+    if(finishReason === 'MAX_TOKENS'){
+      toast('Resposta da IA foi truncada — algumas OS podem estar faltando. Tente novamente.','warn');
+    }
 
     const itens = parsed.itens || [];
+    if(itens.length < ordens.length){
+      toast(`Atenção: IA retornou ${itens.length} de ${ordens.length} OS analisadas.`,'warn');
+    }
     const ICONS = {
       warn: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1.5l5.5 10H1.5L7 1.5z"/><path d="M7 5.5v3M7 10v.5"/></svg>',
       ok: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7l3 3 5-6"/></svg>',
@@ -1735,7 +1738,6 @@ function openDrawer(id){
   ].map(r=>`<div class="di"><div class="di-k">${r.k}</div><div class="di-v">${r.v}</div></div>`).join('');
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
   set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
-  document.getElementById('de-ia-result').classList.remove('on');
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
   set('de-tel',o.tel);set('de-nome-cliente',o.nome_cliente||'');set('de-endereco',o.endereco);set('de-complemento',o.complemento);
   // Carregar peças da OS
