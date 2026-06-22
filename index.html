@@ -769,11 +769,13 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Modelo</span><input class="dinp" id="de-modelo"></div>
         <div class="dfield"><span class="dlbl">Serial</span><input class="dinp" id="de-serial" placeholder="N/S do produto"></div>
         <div class="dfield"><span class="dlbl">Defeito</span><input class="dinp" id="de-defeito"></div>
-      <button class="btn-ia" style="margin-bottom:10px" onclick="analisarComIA('de')" id="de-btn-ia">
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
-        Analisar com IA
-      </button>
-      <div id="de-ia-result" class="ia-result" style="margin-bottom:12px"></div>
+        <div style="grid-column:1/-1">
+          <button class="btn-ia" style="margin-bottom:10px" onclick="analisarComIA('de')" id="de-btn-ia">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+            Analisar com IA
+          </button>
+          <div id="de-ia-result" class="ia-result" style="margin-bottom:12px"></div>
+        </div>
         <div class="dfield"><span class="dlbl">Solução</span><input class="dinp" id="de-solucao"></div>
         <div class="dfield"><span class="dlbl">Bairro</span><input class="dinp" id="de-bairro"></div>
         <div class="dfield"><span class="dlbl">CEP</span><input class="dinp" id="de-cep"></div>
@@ -1262,7 +1264,7 @@ function subscribeOrdens(data){
 /* ── ANÁLISE POR IA (Gemini) ── */
 // Cole sua API key do Google AI Studio aqui (aistudio.google.com/apikey)
 const GEMINI_API_KEY = 'AIzaSyBcjAQ38cFneUWG7uMOxGl8A87buUJ5XFM';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 async function analisarComIA(prefix){
   const modeloEl   = document.getElementById(prefix==='m'?'m-modelo':'de-modelo');
@@ -1304,9 +1306,9 @@ Regras importantes:
 - Não use markdown, apenas texto corrido.`;
 
   try{
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json', 'x-goog-api-key': GEMINI_API_KEY},
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.3, maxOutputTokens: 300 }
