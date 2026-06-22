@@ -183,6 +183,29 @@ button,select,input,textarea{font-family:inherit}
 .btn-rom{display:flex;align-items:center;gap:4px;padding:4px 9px;border:1px solid var(--brd);border-radius:5px;background:var(--surf);font-size:11px;cursor:pointer;color:var(--tx2);transition:all .12s;white-space:nowrap}
 .btn-rom:hover{background:var(--ok-bg);border-color:var(--ok);color:var(--ok-tx)}
 .btn-rom svg{width:11px;height:11px}
+.btn-lock{display:flex;align-items:center;gap:4px;padding:4px 9px;border:1px solid var(--brd);border-radius:5px;background:var(--surf);font-size:11px;cursor:pointer;color:var(--tx2);transition:all .12s;white-space:nowrap}
+.btn-lock:hover{background:var(--warn-bg);border-color:var(--warn);color:var(--warn-tx)}
+.btn-lock.active{background:var(--err);border-color:var(--err);color:#fff}
+.btn-lock.active:hover{background:#9b1717}
+.btn-lock svg{width:11px;height:11px}
+.lane-lock-banner{background:var(--err-bg);border-bottom:1px solid #fca5a5;padding:6px 13px;font-size:11.5px;color:var(--err-tx);display:flex;align-items:center;gap:6px}
+.lane-lock-banner svg{width:13px;height:13px;flex-shrink:0}
+.lane.locked .lcrow{opacity:.45;pointer-events:none}
+.lock-modal-input{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--brd);border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit}
+.lock-modal-input:focus{border-color:var(--err)}
+.btn-ia{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid #8b5cf6;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .12s;white-space:nowrap}
+.btn-ia:hover{opacity:.85}
+.btn-ia:disabled{opacity:.5;cursor:not-allowed}
+.btn-ia svg{width:13px;height:13px}
+.ia-result{display:none;grid-column:1/-1;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 14px;font-size:12.5px;color:#3b0764;margin-top:-2px}
+.ia-result.on{display:block}
+.ia-result-hdr{display:flex;align-items:center;gap:6px;font-weight:600;font-size:11.5px;color:#6d28d9;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.ia-result-hdr svg{width:13px;height:13px}
+.ia-result-body{white-space:pre-wrap;line-height:1.5}
+.ia-result.warn{background:var(--warn-bg);border-color:#f5d98a;color:var(--warn-tx)}
+.ia-result.warn .ia-result-hdr{color:var(--warn-tx)}
+.ia-loading{display:flex;align-items:center;gap:8px;font-size:12px;color:#6d28d9}
+.ia-loading .spin{border-color:rgba(109,40,217,.25);border-top-color:#6d28d9}
 .btn-aux{padding:2px 6px;border:1px solid var(--ow-bg);border-radius:4px;background:var(--ow-bg);font-size:10px;cursor:pointer;color:var(--ow-tx);transition:all .12s}
 .btn-aux:hover{border-color:var(--ow)}
 .lcrow{display:flex;gap:7px;padding:9px 11px;overflow-x:auto;min-height:104px;align-items:flex-start;will-change:transform}
@@ -746,6 +769,11 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Modelo</span><input class="dinp" id="de-modelo"></div>
         <div class="dfield"><span class="dlbl">Serial</span><input class="dinp" id="de-serial" placeholder="N/S do produto"></div>
         <div class="dfield"><span class="dlbl">Defeito</span><input class="dinp" id="de-defeito"></div>
+      <button class="btn-ia" style="margin-bottom:10px" onclick="analisarComIA('de')" id="de-btn-ia">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+        Analisar com IA
+      </button>
+      <div id="de-ia-result" class="ia-result" style="margin-bottom:12px"></div>
         <div class="dfield"><span class="dlbl">Solução</span><input class="dinp" id="de-solucao"></div>
         <div class="dfield"><span class="dlbl">Bairro</span><input class="dinp" id="de-bairro"></div>
         <div class="dfield"><span class="dlbl">CEP</span><input class="dinp" id="de-cep"></div>
@@ -830,6 +858,11 @@ button,select,input,textarea{font-family:inherit}
         <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
         <div><label class="lbl">Serial</label><input class="inp nm" id="m-serial" placeholder="N/S do produto"></div>
         <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
+        <button class="btn-ia mfull" style="justify-self:start" onclick="analisarComIA('m')" id="m-btn-ia">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+          Analisar com IA
+        </button>
+        <div id="m-ia-result" class="ia-result"></div>
         <div><label class="lbl">Possível solução</label><input class="inp nm" id="m-solucao"></div>
         <div><label class="lbl">Bairro</label><input class="inp nm" id="m-bairro"></div>
         <div><label class="lbl">CEP</label><input class="inp nm" id="m-cep"></div>
@@ -878,6 +911,29 @@ button,select,input,textarea{font-family:inherit}
     <div class="mhdr"><span class="mtitle" id="mf-title">—</span><button class="mclose" onclick="closeModal('modal-form')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div>
     <div class="mbody s1" id="mf-body"></div>
     <div class="mfoot"><button class="btn-ghost" onclick="closeModal('modal-form')">Cancelar</button><button class="btn-save" id="mf-save">Salvar</button></div>
+  </div>
+</div>
+
+<!-- MODAL TRAVA DE ROTA -->
+<div class="pend-nota-moverlay" id="modal-trava" onclick="if(event.target===this)fecharTravaModal()">
+  <div class="pend-nota-modal" onclick="event.stopPropagation()">
+    <div class="pend-nota-hdr">
+      <div>
+        <div style="font-size:14px;font-weight:600">Travar rota do técnico</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:2px" id="trava-tec-nome">—</div>
+      </div>
+      <button onclick="fecharTravaModal()" style="width:28px;height:28px;border:1px solid var(--brd);border-radius:8px;background:var(--surf);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--tx2)">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="pend-nota-body">
+      <div style="font-size:11px;color:var(--tx3);margin-bottom:8px">Explique o motivo do bloqueio (ex: rota fora do CTDI, técnico de férias, etc). A trava é só um aviso visual — não impede edição.</div>
+      <textarea id="trava-motivo-txt" class="lock-modal-input" placeholder="Ex: Rota suspensa — aguardando aprovação do cliente"></textarea>
+    </div>
+    <div class="pend-nota-foot">
+      <button class="btn-ghost" onclick="fecharTravaModal()">Cancelar</button>
+      <button class="btn-save" style="background:var(--err)" onclick="salvarTrava()">Travar rota</button>
+    </div>
   </div>
 </div>
 
@@ -992,6 +1048,7 @@ const S = {
   tecnicos:[], auxiliares:[], tipos:[], cargos:[], usuarios:[],
   ordens:{},      // { "YYYY-MM-DD": [os,...] }
   auditoria:[],
+  travas:{},      // { "YYYY-MM-DD": { techId: {motivo, user, ts} } }
 };
 
 let filtro=null, draggingId=null, drawerOsId=null, drwState={};
@@ -1106,6 +1163,7 @@ window.bootApp = async function(){
 
   // Subscrever ordens do dia
   subscribeOrdens(TODAY_STR);
+  subscribeTravas(TODAY_STR);
 
   // Selects do mês para relatório
   buildMonthSelect();
@@ -1201,6 +1259,132 @@ function subscribeOrdens(data){
   );
 }
 
+/* ── ANÁLISE POR IA (Gemini) ── */
+// Cole sua API key do Google AI Studio aqui (aistudio.google.com/apikey)
+const GEMINI_API_KEY = 'AQ.Ab8RN6J5mqefm-akxQVZSdlVWp8eW2crX23-JRwh2RRDNI_ISw';
+const GEMINI_MODEL = 'gemini-2.0-flash';
+
+async function analisarComIA(prefix){
+  const modeloEl   = document.getElementById(prefix==='m'?'m-modelo':'de-modelo');
+  const defeitoEl  = document.getElementById(prefix==='m'?'m-defeito':'de-defeito');
+  const solucaoEl  = document.getElementById(prefix==='m'?'m-solucao':'de-solucao');
+  const resultEl   = document.getElementById(prefix+'-ia-result');
+  const btnEl      = document.getElementById(prefix+'-btn-ia');
+  if(!modeloEl||!defeitoEl||!resultEl) return;
+
+  const modelo  = (modeloEl.value||'').trim();
+  const defeito = (defeitoEl.value||'').trim();
+  const solucao = (solucaoEl?.value||'').trim();
+
+  if(!modelo && !defeito){
+    toast('Preencha pelo menos o modelo ou o defeito antes de analisar.','warn');
+    return;
+  }
+  if(!GEMINI_API_KEY || GEMINI_API_KEY==='COLE_SUA_CHAVE_AQUI'){
+    toast('Chave da API Gemini não configurada. Contate o administrador.','err');
+    return;
+  }
+
+  btnEl.disabled = true;
+  resultEl.classList.add('on');
+  resultEl.classList.remove('warn');
+  resultEl.innerHTML = '<div class="ia-loading"><span class="spin"></span>Analisando com IA...</div>';
+
+  const prompt = `Você é um técnico especialista em assistência de eletrônicos (TVs, eletrodomésticos, etc) de uma empresa de assistência técnica autorizada (CTDI).
+Analise os dados desta ordem de serviço e dê uma sugestão TÉCNICA curta e objetiva (máximo 3-4 linhas) sobre o reparo.
+
+Modelo do produto: ${modelo||'não informado'}
+Defeito relatado: ${defeito||'não informado'}
+Possível solução já anotada: ${solucao||'não informada'}
+
+Regras importantes:
+- Se identificar que é uma TV grande (55 polegadas ou mais) com sintomas de problema em LED bar/backlight (tela escura, sem imagem, meia tela, linhas na tela, flickering), ALERTE que é "Passível de retirada para ser feito em assistência em ambiente controlado" pois LED bars de TVs grandes geralmente requerem desmontagem completa do painel.
+- Se for um defeito simples (cabo, fonte, configuração), sugira a verificação rápida em campo.
+- Seja direto, sem rodeios, em português brasileiro, focado em ajudar o técnico de campo a decidir se resolve no local ou leva pra assistência.
+- Não use markdown, apenas texto corrido.`;
+
+  try{
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 300 }
+      })
+    });
+    if(!resp.ok){
+      const errData = await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message || `Erro HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Não foi possível gerar uma análise.';
+
+    // Destacar visualmente se a IA mencionar retirada/ambiente controlado
+    const isAlerta = /retirada|ambiente controlado|desmontagem|levar.*assist/i.test(texto);
+    resultEl.classList.toggle('warn', isAlerta);
+    resultEl.innerHTML = `
+      <div class="ia-result-hdr">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+        Análise por IA
+      </div>
+      <div class="ia-result-body">${texto.replace(/</g,'&lt;')}</div>`;
+  }catch(e){
+    resultEl.classList.add('warn');
+    resultEl.innerHTML = `
+      <div class="ia-result-hdr">⚠ Erro na análise</div>
+      <div class="ia-result-body">${e.message}</div>`;
+  }finally{
+    btnEl.disabled = false;
+  }
+}
+window.analisarComIA = analisarComIA;
+
+function subscribeTravas(data){
+  if(unsubs.travas){unsubs.travas();delete unsubs.travas;}
+  const{onSnapshot,collection}=getFB();
+  unsubs.travas=onSnapshot(collection(getDB(),`rotas/${data}/travas`), snap=>{
+    S.travas[data] = {};
+    snap.docs.forEach(d=>{ S.travas[data][d.id] = d.data(); });
+    renderBoard();
+  }, ()=>{ S.travas[data]={}; });
+}
+
+let _travaTecId = null;
+window.abrirTravaModal = function(tecId){
+  const t = S.tecnicos.find(x=>x.id===tecId); if(!t) return;
+  _travaTecId = tecId;
+  const trava = (S.travas[currentDate]||{})[tecId];
+  document.getElementById('trava-tec-nome').textContent = t.nome + ' · ' + fmtShort(currentDate);
+  document.getElementById('trava-motivo-txt').value = trava?.motivo || '';
+  document.getElementById('modal-trava').classList.add('on');
+  setTimeout(()=>document.getElementById('trava-motivo-txt').focus(), 80);
+};
+window.fecharTravaModal = function(){
+  document.getElementById('modal-trava').classList.remove('on');
+  _travaTecId = null;
+};
+window.salvarTrava = async function(){
+  if(!_travaTecId) return;
+  const motivo = document.getElementById('trava-motivo-txt').value.trim();
+  if(!motivo){ toast('Escreva o motivo do bloqueio.','warn'); return; }
+  try{
+    const {setDoc,doc,serverTimestamp} = getFB();
+    await setDoc(doc(getDB(),`rotas/${currentDate}/travas`,_travaTecId),{
+      motivo, user:window._currentUser?.nome||'Sistema', ts:serverTimestamp()
+    });
+    toast('Rota travada','ok');
+    fecharTravaModal();
+  }catch(e){ toast('Erro: '+e.message,'err'); }
+};
+window.removerTrava = async function(tecId){
+  if(!confirm('Remover a trava desta rota?')) return;
+  try{
+    const {deleteDoc,doc} = getFB();
+    await deleteDoc(doc(getDB(),`rotas/${currentDate}/travas`,tecId));
+    toast('Trava removida','ok');
+  }catch(e){ toast('Erro: '+e.message,'err'); }
+};
+
 function stopAllListeners(){
   Object.values(unsubs).forEach(u=>{ try{u()}catch(e){} });
   Object.keys(unsubs).forEach(k=>delete unsubs[k]);
@@ -1238,6 +1422,7 @@ function setCurrentDate(d){
   if(isFuture(d)){btn.classList.add('future');banner.classList.add('on');document.getElementById('banner-msg').textContent=`Rota futura: ${fmtDate(d)} — edições exigem confirmação`;}
   else if(isPast(d)){btn.classList.add('past');banner.classList.add('on');document.getElementById('banner-msg').textContent=`Visualizando rota passada: ${fmtDate(d)}`;}
   subscribeOrdens(d);
+  subscribeTravas(d);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1320,7 +1505,8 @@ function renderBoard(){
     const filtered=all.filter(o=>visOS(o));
     const rod=isRodizio(t.id);
     const aux=getAux(t.id);
-    const lane=document.createElement('div'); lane.className='lane'; lane.dataset.tid=t.id;
+    const trava=(S.travas[currentDate]||{})[t.id];
+    const lane=document.createElement('div'); lane.className='lane'+(trava?' locked':''); lane.dataset.tid=t.id;
     const auxHtml=aux&&aux.nome&&aux.nome.toLowerCase()!=='na'
       ?`<span class="taux-name">${aux.nome}</span>`
       :`<span style="font-size:10px;color:var(--tx3)">Sem aux.</span>`;
@@ -1333,10 +1519,13 @@ function renderBoard(){
       </div>
       ${rod?`<div class="rod-warn"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1.5l5.5 10H1.5L7 1.5z"/><path d="M7 5.5v3M7 10v.5"/></svg>Rodízio</div>`:''}
       <span class="sbadge ${all.length>=10?'full':''}">${all.length}/10</span>
+      <button class="btn-lock${trava?' active':''}" onclick="abrirTravaModal('${t.id}');event.stopPropagation()" title="${trava?trava.motivo:'Travar rota deste técnico'}">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="8" height="6" rx="1"/><path d="M5 6V4a2 2 0 0 1 4 0v2"/></svg>${trava?'Travado':'Travar'}
+      </button>
       <button class="btn-rom" onclick="openRomaneio('${t.id}');event.stopPropagation()">
         <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="1" width="12" height="12" rx="1.5"/><path d="M3 4h8M3 7h8M3 10h5"/></svg>Romaneio
       </button>
-    </div><div class="lcrow" id="lcrow-${t.id}"></div>`;
+    </div>${trava?`<div class="lane-lock-banner"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="8" height="6" rx="1"/><path d="M5 6V4a2 2 0 0 1 4 0v2"/></svg><span><b>Rota travada:</b> ${trava.motivo}</span><button onclick="removerTrava('${t.id}');event.stopPropagation()" style="margin-left:auto;background:none;border:none;color:var(--err-tx);cursor:pointer;font-size:11px;text-decoration:underline">Remover</button></div>`:''}<div class="lcrow" id="lcrow-${t.id}"></div>`;
     frag.appendChild(lane);
     // Drag events na lane
     lane.addEventListener('dragover',e=>{e.preventDefault();lane.classList.add('dov')});
@@ -1442,6 +1631,7 @@ function openDrawer(id){
   ].map(r=>`<div class="di"><div class="di-k">${r.k}</div><div class="di-v">${r.v}</div></div>`).join('');
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||''};
   set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
+  document.getElementById('de-ia-result').classList.remove('on');
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
   set('de-tel',o.tel);set('de-nome-cliente',o.nome_cliente||'');set('de-endereco',o.endereco);set('de-complemento',o.complemento);
   // Carregar peças da OS
