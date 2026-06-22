@@ -206,6 +206,16 @@ button,select,input,textarea{font-family:inherit}
 .ia-result.warn .ia-result-hdr{color:var(--warn-tx)}
 .ia-loading{display:flex;align-items:center;gap:8px;font-size:12px;color:#6d28d9}
 .ia-loading .spin{border-color:rgba(109,40,217,.25);border-top-color:#6d28d9}
+.rom-ia-panel{display:none;margin:12px auto;max-width:860px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px}
+.rom-ia-panel.on{display:block}
+.rom-ia-hdr{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:10px}
+.rom-ia-hdr svg{width:16px;height:16px}
+.rom-ia-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:12.5px;line-height:1.5}
+.rom-ia-item.warn{background:var(--warn-bg);border:1px solid #f5d98a;color:var(--warn-tx)}
+.rom-ia-item.ok{background:var(--ok-bg);border:1px solid #9FE1CB;color:var(--ok-tx)}
+.rom-ia-item.info{background:#fff;border:1px solid #ddd6fe;color:#3b0764}
+.rom-ia-item b{font-family:'DM Mono',monospace}
+.rom-ia-item svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
 .btn-aux{padding:2px 6px;border:1px solid var(--ow-bg);border-radius:4px;background:var(--ow-bg);font-size:10px;cursor:pointer;color:var(--ow-tx);transition:all .12s}
 .btn-aux:hover{border-color:var(--ow)}
 .lcrow{display:flex;gap:7px;padding:9px 11px;overflow-x:auto;min-height:104px;align-items:flex-start;will-change:transform}
@@ -997,6 +1007,10 @@ button,select,input,textarea{font-family:inherit}
     <div class="mhdr">
       <span class="mtitle">Romaneio CTDI — <span id="rom-tec-title"></span> — <span id="rom-date-title"></span></span>
       <div style="display:flex;gap:8px">
+        <button class="btn-ia" onclick="analisarRotaComIA();event.stopPropagation()" id="btn-ia-rota">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+          Analisar rota com IA
+        </button>
         <button class="btn-exp" onclick="abrirModalOrdem();event.stopPropagation()" style="background:var(--surf2);border-color:var(--brd2);color:var(--tx2)">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h10M2 7h7M2 10h4"/><path d="M11 7v5M9 10l2 2 2-2"/></svg>
           Ordem de atendimento
@@ -1015,7 +1029,10 @@ button,select,input,textarea{font-family:inherit}
         <button class="mclose" onclick="closeModal('modal-rom')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
       </div>
     </div>
-    <div class="rom-preview-body"><div id="rom-content"></div></div>
+    <div class="rom-preview-body">
+      <div class="rom-ia-panel" id="rom-ia-panel"></div>
+      <div id="rom-content"></div>
+    </div>
   </div>
 </div>
 
@@ -1340,6 +1357,91 @@ Regras importantes:
   }
 }
 window.analisarComIA = analisarComIA;
+
+/* ── ANÁLISE DE ROTA COMPLETA (todas as OS do técnico de uma vez) ── */
+async function analisarRotaComIA(){
+  const ordens = window._romOrdens || [];
+  const panel = document.getElementById('rom-ia-panel');
+  const btn = document.getElementById('btn-ia-rota');
+  if(!ordens.length){ toast('Nenhuma OS nesta rota para analisar.','warn'); return; }
+  if(!GEMINI_API_KEY || GEMINI_API_KEY==='COLE_SUA_CHAVE_AQUI'){
+    toast('Chave da API Gemini não configurada.','err'); return;
+  }
+
+  btn.disabled = true;
+  panel.classList.add('on');
+  panel.innerHTML = '<div class="ia-loading"><span class="spin"></span>Analisando '+ordens.length+' OS da rota...</div>';
+
+  const listaOs = ordens.map((o,i)=>
+    `${i+1}. OS #${o.os} | Modelo: ${o.modelo||'—'} | Defeito: ${o.defeito||'—'} | Solução anotada: ${o.solucao||'—'} | Peças: ${o.pecas==='sim'?'sim':'não'} | Tipo: ${o.tipo||'—'}`
+  ).join('\n');
+
+  const prompt = `Você é um técnico especialista sênior em assistência técnica de eletrônicos (TVs, eletrodomésticos) de uma empresa autorizada (CTDI), revisando a rota do dia de um técnico de campo ANTES dele saber para a rua.
+
+Aqui está a lista de OS da rota:
+${listaOs}
+
+Para CADA ordem de serviço, avalie rapidamente se há algum risco ou observação importante, com foco em:
+1. TVs de 55 polegadas ou mais com sintomas de problema em LED bar/backlight (tela escura, sem imagem, meia tela, linhas, flickering) — nesses casos, alertar que é "Passível de retirada para ser feito em assistência em ambiente controlado".
+2. OS sem peças cadastradas que provavelmente vão precisar de peça (baseado no defeito descrito).
+3. Defeitos que parecem simples e podem ser resolvidos rapidamente em campo.
+4. Qualquer inconsistência entre modelo/defeito/solução anotada que pareça estranha.
+
+Responda APENAS em formato JSON válido, sem markdown, sem texto antes ou depois, neste formato exato:
+{"itens":[{"os":"numero_da_os","tipo":"warn|ok|info","texto":"observação curta e objetiva em português"}]}
+
+Regras:
+- tipo "warn" = risco real, atenção necessária (ex: passível de retirada, peça provavelmente necessária)
+- tipo "ok" = OS simples, sem problemas aparentes, pode ser resolvida rápido
+- tipo "info" = observação neutra, não crítica
+- Inclua TODAS as OS da lista, uma entrada para cada uma.
+- Seja direto e objetivo, máximo 2 linhas por item.`;
+
+  try{
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'x-goog-api-key': GEMINI_API_KEY},
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2000, responseMimeType: 'application/json' }
+      })
+    });
+    if(!resp.ok){
+      const errData = await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message || `Erro HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
+    let parsed;
+    try{ parsed = JSON.parse(texto); }catch(e){ throw new Error('IA retornou formato inválido.'); }
+
+    const itens = parsed.itens || [];
+    const ICONS = {
+      warn: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1.5l5.5 10H1.5L7 1.5z"/><path d="M7 5.5v3M7 10v.5"/></svg>',
+      ok: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7l3 3 5-6"/></svg>',
+      info: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5.5"/><path d="M7 6.5v3.5M7 4.5v.5"/></svg>',
+    };
+    const countWarn = itens.filter(i=>i.tipo==='warn').length;
+
+    panel.innerHTML = `
+      <div class="rom-ia-hdr">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 1l1.5 3.5L12 6l-3.5 1.5L7 11l-1.5-3.5L2 6l3.5-1.5L7 1z"/></svg>
+        Análise da rota por IA — ${ordens.length} OS analisadas ${countWarn>0?`· <span style="color:var(--err)">${countWarn} alerta(s)</span>`:'· nenhum alerta'}
+      </div>
+      ${itens.map(i=>`
+        <div class="rom-ia-item ${i.tipo||'info'}">
+          ${ICONS[i.tipo]||ICONS.info}
+          <span><b>#${i.os}</b> — ${(i.texto||'').replace(/</g,'&lt;')}</span>
+        </div>
+      `).join('')}
+    `;
+  }catch(e){
+    panel.innerHTML = `<div class="rom-ia-item warn">⚠ Erro na análise: ${e.message}</div>`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+window.analisarRotaComIA = analisarRotaComIA;
 
 function subscribeTravas(data){
   if(unsubs.travas){unsubs.travas();delete unsubs.travas;}
@@ -2641,6 +2743,9 @@ function _doOpenRomaneio(tecId, t, os){
   if(btnTxt) btnTxt.textContent='Calcular KM da rota';
   const btn2=document.getElementById('btn-calc-km');
   if(btn2){btn2.disabled=false;btn2.style.opacity='1';}
+  // Resetar painel de análise IA
+  const iaPanel=document.getElementById('rom-ia-panel');
+  if(iaPanel){iaPanel.classList.remove('on');iaPanel.innerHTML='';}
 }
 
 /* ══ ORDEM DE ATENDIMENTO ══ */
