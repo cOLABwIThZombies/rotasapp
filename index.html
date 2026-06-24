@@ -2857,7 +2857,7 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
       <th>VEÍCULO ALOCADO</th>
       <td style="font-size:9.5px">${t.veiculo||'—'}</td>
       <th>PLACA</th>
-      <td style="font-size:9.5px;font-family:monospace;font-weight:700">${t.placa||'—'}</td>
+      <td style="font-size:9.5px;font-family:monospace;font-weight:700">${t.placa||'—'}${RODIZIO[t.placa_fim]===new Date(currentDate+'T12:00:00').getDay()?' <span style="display:inline-block;font-family:Arial,sans-serif;font-size:7px;font-weight:700;letter-spacing:.3px;background:#fff3cd;color:#7a4a00;border:1px solid #e0b84a;border-radius:3px;padding:1px 5px;margin-left:5px;vertical-align:middle">⚠ RODÍZIO HOJE</span>':''}</td>
     </tr>
     <tr>
       <th>DATA</th>
