@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GestãoRotas</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -88,6 +90,16 @@ onAuthStateChanged(auth, async (fbUser) => {
   --err:#b91c1c;--err-bg:#fef2f2;--err-tx:#7f1d1d;
   --sidebar:210px;--hdr:52px;--r:8px;--rl:12px;
 }
+/* ── ANIMAÇÕES GLOBAIS ── */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideInRight{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes popIn{0%{opacity:0;transform:scale(.85)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+:root{--anim-fast:.15s;--anim-mid:.22s;--anim-slow:.35s;--ease:cubic-bezier(.4,0,.2,1);--ease-spring:cubic-bezier(.34,1.56,.64,1)}
+
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh;contain:layout}
 button,select,input,textarea{font-family:inherit}
 ::-webkit-scrollbar{width:5px;height:5px}
@@ -123,8 +135,8 @@ button,select,input,textarea{font-family:inherit}
 .slogo-name{font-size:14px;font-weight:600}
 .snav{padding:8px 7px;flex:1}
 .nsec{font-size:10px;font-weight:600;color:var(--tx3);letter-spacing:.7px;text-transform:uppercase;padding:8px 8px 4px}
-.ni{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--tx2);transition:all .12s;margin-bottom:1px;user-select:none}
-.ni:hover{background:var(--bg);color:var(--tx)}
+.ni{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--tx2);transition:background var(--anim-fast) var(--ease),color var(--anim-fast) var(--ease),transform var(--anim-fast) var(--ease-spring);margin-bottom:1px;user-select:none}
+.ni:hover{background:var(--bg);color:var(--tx);transform:translateX(2px)}
 .ni.on{background:var(--tx);color:#fff}
 .ni[data-perm].hidden{display:none}
 .ni svg{width:14px;height:14px;flex-shrink:0}
@@ -146,10 +158,12 @@ button,select,input,textarea{font-family:inherit}
 .fchip:hover{border-color:var(--brd2);color:var(--tx)}
 .fchip.on{background:var(--tx);color:#fff;border-color:var(--tx)}
 .btn-new{display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--tx);color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:500;cursor:pointer;transition:opacity .12s;white-space:nowrap}
-.btn-new:hover{opacity:.82}
+.btn-new:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.btn-new:active{transform:translateY(0) scale(.97)}
 .btn-new svg{width:12px;height:12px}
 .screen{display:none;flex:1;flex-direction:column;overflow:hidden}
-.screen.on{display:flex}
+.screen.on{display:flex;animation:fadeIn var(--anim-mid) var(--ease) both}
+.screen.slide-up.on{animation:slideUp var(--anim-mid) var(--ease) both}
 .sw{position:relative;flex-shrink:0}
 .sw svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--tx3);pointer-events:none}
 .si{padding:5px 9px 5px 28px;border:1px solid var(--brd);border-radius:6px;font-size:12px;outline:none;width:160px;background:var(--surf);color:var(--tx);transition:all .15s}
@@ -158,15 +172,16 @@ button,select,input,textarea{font-family:inherit}
 .date-banner.on{display:flex}
 /* ── STATS ── */
 .sbar{display:flex;gap:7px;padding:11px 16px 0;flex-shrink:0;flex-wrap:wrap}
-.scard{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:8px 13px;flex:1;min-width:72px}
+.scard{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:8px 13px;flex:1;min-width:72px;transition:box-shadow var(--anim-fast) var(--ease),border-color var(--anim-fast) var(--ease),transform var(--anim-fast) var(--ease-spring)}
 .scard.cp{cursor:pointer;transition:border-color .12s}
-.scard.cp:hover{border-color:var(--brd2)}
+.scard.cp:hover{border-color:var(--brd2);box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+.scard.cp:active{transform:translateY(0)}
 .sc-l{font-size:10px;color:var(--tx3);font-weight:500;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
 .sc-v{font-size:20px;font-weight:600;letter-spacing:-.5px}
 .sc-s{font-size:10px;color:var(--tx3);margin-top:1px}
 /* ── BOARD ── */
 .board{padding:11px 16px 24px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1}
-.lane{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;transition:border-color .15s;contain:layout}
+.lane{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;transition:border-color var(--anim-fast) var(--ease),box-shadow var(--anim-fast) var(--ease);animation:slideUp var(--anim-mid) var(--ease) both;contain:layout}
 .lane.dov{border-color:var(--ow);border-style:dashed}
 .lhdr{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--brd);background:var(--surf2);flex-wrap:wrap}
 .tav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0}
@@ -208,6 +223,16 @@ button,select,input,textarea{font-family:inherit}
 .ia-loading .spin{border-color:rgba(109,40,217,.25);border-top-color:#6d28d9}
 .rom-ia-panel{display:none;margin:12px auto;max-width:860px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px}
 .rom-ia-panel.on{display:block}
+/* Mapa */
+.mapa-tec-card{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .12s;margin-bottom:4px;border:1px solid transparent}
+.mapa-tec-card:hover{background:var(--bg)}
+.mapa-tec-card.ativo{background:var(--ow-bg);border-color:var(--ow)}
+.mapa-tec-card.offline{opacity:.5}
+.mapa-tec-info{flex:1;min-width:0}
+.mapa-tec-nome{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapa-tec-det{font-size:10.5px;color:var(--tx3);margin-top:1px}
+.mapa-vel-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:var(--ok-bg);color:var(--ok-tx);white-space:nowrap}
+.mapa-vel-badge.parado{background:var(--surf2);color:var(--tx3)}
 .rom-ia-hdr{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:10px}
 .rom-ia-hdr svg{width:16px;height:16px}
 .rom-ia-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:12.5px;line-height:1.5}
@@ -221,8 +246,8 @@ button,select,input,textarea{font-family:inherit}
 .lcrow{display:flex;gap:7px;padding:9px 11px;overflow-x:auto;min-height:104px;align-items:flex-start;will-change:transform}
 .lcrow::-webkit-scrollbar{height:3px}
 /* ── CARD ── */
-.osc{flex-shrink:0;width:162px;background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:8px 10px;cursor:pointer;user-select:none;border-top:3px solid transparent;position:relative;transition:border-color .1s,box-shadow .1s,transform .1s}
-.osc:hover{border-color:var(--brd2);box-shadow:0 2px 8px rgba(0,0,0,.06);transform:translateY(-1px)}
+.osc{flex-shrink:0;width:162px;background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:8px 10px;cursor:pointer;user-select:none;border-top:3px solid transparent;position:relative;transition:border-color var(--anim-fast) var(--ease),box-shadow var(--anim-fast) var(--ease),transform var(--anim-fast) var(--ease-spring)}
+.osc:hover{border-color:var(--brd2);box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-3px) scale(1.01)}
 .osc.prio-lp{border-top-color:var(--lp)}
 .osc.prio-ow{border-top-color:var(--ow)}
 .osc.st-done{opacity:.72}
@@ -263,7 +288,8 @@ button,select,input,textarea{font-family:inherit}
 /* ── DRAWER ── */
 .drw-bg{display:none;position:fixed;inset:0;background:rgba(26,25,23,.4);z-index:200}
 .drw-bg.on{display:block}
-.drawer{position:fixed;top:0;right:-460px;width:460px;height:100vh;background:var(--surf);border-left:1px solid var(--brd);z-index:201;display:flex;flex-direction:column;transition:right .2s cubic-bezier(.4,0,.2,1)}
+.drawer{position:fixed;top:0;right:-460px;width:460px;height:100vh;background:var(--surf);border-left:1px solid var(--brd);z-index:201;display:flex;flex-direction:column;transition:right var(--anim-slow) var(--ease),box-shadow var(--anim-slow) var(--ease)}
+.drawer.on{right:0;box-shadow:-8px 0 32px rgba(0,0,0,.12)}
 .drawer.on{right:0}
 .drw-hdr{padding:14px 18px;border-bottom:1px solid var(--brd);display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0}
 .drw-num{font-size:19px;font-weight:600;font-family:'DM Mono',monospace}
@@ -273,7 +299,9 @@ button,select,input,textarea{font-family:inherit}
 .drw-close svg{width:12px;height:12px}
 .drw-tabs{display:flex;border-bottom:1px solid var(--brd);flex-shrink:0}
 .drw-tab{flex:1;padding:9px;font-size:12.5px;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent;text-align:center;transition:all .12s;margin-bottom:-1px}
-.drw-tab:hover{color:var(--tx)}.drw-tab.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:500}
+.drw-tab:hover{color:var(--tx);background:var(--bg)}
+.drw-tab.on{color:var(--tx);border-bottom-color:var(--tx);font-weight:500}
+.drw-tab{transition:color var(--anim-fast),background var(--anim-fast),border-color var(--anim-fast)}
 .drw-body{flex:1;overflow-y:auto;padding:16px 18px}
 .dpanel{display:none}.dpanel.on{display:block}
 .dsect{font-size:10.5px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px}
@@ -294,15 +322,17 @@ button,select,input,textarea{font-family:inherit}
 .rbtn.err.on{border-color:var(--err);background:var(--err);color:#fff}
 .rbtn.warn.on{border-color:var(--warn);background:var(--warn-bg);color:var(--warn-tx)}
 .drw-foot{padding:12px 18px;border-top:1px solid var(--brd);display:flex;gap:8px;flex-shrink:0}
-.btn-save{flex:1;padding:9px;background:var(--tx);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .12s}
-.btn-save:hover{opacity:.82}
+.btn-save{flex:1;padding:9px;background:var(--tx);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity var(--anim-fast),transform var(--anim-fast) var(--ease-spring);position:relative;overflow:hidden}
+.btn-save:hover{opacity:.88;transform:translateY(-1px)}
+.btn-save:active{transform:translateY(0) scale(.98)}
 .btn-ghost{padding:9px 14px;border:1px solid var(--brd);border-radius:6px;background:none;font-size:13px;cursor:pointer;color:var(--tx2);transition:all .12s}
 .btn-ghost:hover{background:var(--bg);color:var(--tx)}
 .btn-del{padding:9px 12px;border:1px solid #fca5a5;border-radius:6px;background:none;font-size:12px;cursor:pointer;color:var(--err);transition:all .12s}
 .btn-del:hover{background:var(--err-bg)}
 /* ── MODALS ── */
-.moverlay{display:none;position:fixed;inset:0;background:rgba(26,25,23,.5);z-index:300;align-items:center;justify-content:center}
-.moverlay.on{display:flex}
+.moverlay{display:none;position:fixed;inset:0;background:rgba(26,25,23,0);z-index:300;align-items:center;justify-content:center;transition:background var(--anim-mid) var(--ease)}
+.moverlay.on{display:flex;animation:fadeIn var(--anim-fast) var(--ease) both}
+.moverlay.on .modal{animation:scaleIn var(--anim-mid) var(--ease-spring) both}
 .modal{background:var(--surf);border-radius:14px;width:520px;max-width:96vw;border:1px solid var(--brd);overflow:hidden;max-height:92vh;display:flex;flex-direction:column}
 .modal.sm{width:380px}.modal.xl{width:900px;max-width:98vw;max-height:96vh}
 .mhdr{padding:14px 18px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
@@ -316,7 +346,7 @@ button,select,input,textarea{font-family:inherit}
 /* ── LISTS ── */
 .hf-wrap{padding:16px;overflow-y:auto;flex:1}
 .hf-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
-.hf-card{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);padding:13px 15px;margin-bottom:8px}
+.hf-card{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);padding:13px 15px;margin-bottom:8px;transition:box-shadow var(--anim-fast) var(--ease),transform var(--anim-fast) var(--ease-spring);animation:slideUp var(--anim-mid) var(--ease) both}
 .hf-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .hf-os{font-size:15px;font-weight:600;font-family:'DM Mono',monospace}
 .hf-date{font-size:11px;color:var(--tx3);margin-left:auto}
@@ -485,15 +515,16 @@ button,select,input,textarea{font-family:inherit}
 .rom-tbl td,.rom-tbl th{border:1px solid #000;padding:3px 5px;font-size:8.5px;vertical-align:top}
 .rom-tbl th{background:#d0d0d0;font-weight:700;font-size:8px;text-transform:uppercase;text-align:left}
 /* ── TOAST ── */
-.toast{position:fixed;bottom:20px;right:20px;background:var(--tx);color:#fff;border-radius:var(--r);padding:10px 15px;font-size:12.5px;z-index:999;display:flex;align-items:center;gap:7px;transform:translateY(8px);opacity:0;transition:all .2s;pointer-events:none;max-width:320px}
-.toast.on{transform:translateY(0);opacity:1}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--tx);color:#fff;border-radius:var(--r);padding:10px 15px;font-size:12.5px;z-index:999;display:flex;align-items:center;gap:7px;transform:translateY(16px) scale(.95);opacity:0;transition:transform var(--anim-mid) var(--ease-spring),opacity var(--anim-fast) var(--ease);pointer-events:none;max-width:320px;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.toast.on{transform:translateY(0) scale(1);opacity:1}
 .toast svg{width:13px;height:13px;flex-shrink:0}
 .toast.ok{background:var(--ok-bg);color:var(--ok-tx);border:1px solid #9FE1CB}
 .toast.warn{background:var(--warn-bg);color:var(--warn-tx);border:1px solid #f5d98a}
 .toast.err{background:var(--err-bg);color:var(--err-tx);border:1px solid #fca5a5}
 /* ── LOADING ── */
 #app-loading{display:none;position:fixed;inset:0;background:var(--bg);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
-#app-loading.on{display:flex}
+#app-loading.on{display:flex;animation:fadeIn var(--anim-fast) var(--ease)}
+#app-loading.fade-out{animation:fadeIn var(--anim-mid) var(--ease) reverse both}
 .big-spin{width:36px;height:36px;border:3px solid var(--brd);border-top-color:var(--tx);border-radius:50%;animation:spin .8s linear infinite}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:10px;color:var(--tx3);padding:40px}
 .empty-state svg{width:48px;height:48px;opacity:.35}
@@ -592,6 +623,7 @@ button,select,input,textarea{font-family:inherit}
       <div class="ni on" data-perm="rotas" onclick="go('rotas',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="9" rx="1"/><rect x="9" y="1" width="6" height="5" rx="1"/><rect x="9" y="8" width="6" height="7" rx="1"/><rect x="1" y="12" width="6" height="3" rx="1"/></svg>Quadro de rotas</div>
       <div class="ni" data-perm="dashboard" onclick="go('dashboard',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="3"/><circle cx="11" cy="5" r="3"/><circle cx="5" cy="11" r="3"/><circle cx="11" cy="11" r="3"/></svg>Dashboard</div>
       <div class="ni" data-perm="calendario" onclick="go('calendario',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M1 7h14M5 1v3M11 1v3"/></svg>Calendário</div>
+      <div class="ni" data-perm="mapa" onclick="go('mapa',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="7" r="2.5"/><path d="M8 2C5.2 2 3 4.2 3 7c0 3.5 5 8 5 8s5-4.5 5-8c0-2.8-2.2-5-5-5z"/></svg>Mapa</div>
       <div class="ni" data-perm="finalizado" onclick="go('finalizado',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l4-5 2 2 4-6 3 3"/><path d="M2 15h12"/></svg>Hist. finalizado</div>
       <div class="ni" data-perm="auditoria" onclick="go('auditoria',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Auditoria</div>
       <div class="ni" data-perm="relatorios" onclick="go('relatorios',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l3-4 3 2 3-5 3 3"/><path d="M2 15h12"/></svg>Relatórios</div>
@@ -672,6 +704,37 @@ button,select,input,textarea{font-family:inherit}
     </div>
 
     <!-- HIST. FINALIZADO -->
+    <!-- MAPA -->
+    <div id="screen-mapa" class="screen">
+      <div class="hdr" style="flex-shrink:0">
+        <span class="htitle">Mapa da frota</span>
+        <div class="hsp"></div>
+        <div id="mapa-status" style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--tx3)">
+          <div id="mapa-dot" style="width:7px;height:7px;border-radius:50%;background:var(--brd2)"></div>
+          <span id="mapa-status-txt">Aguardando...</span>
+        </div>
+        <button onclick="mapaRefresh()" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--brd);border-radius:6px;background:var(--surf);font-size:12px;color:var(--tx2);cursor:pointer" id="mapa-refresh-btn">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 7a6 6 0 1 0 2-4.5"/><path d="M1 3v4h4"/></svg>Atualizar
+        </button>
+        <span id="mapa-ultima-att" style="font-size:11px;color:var(--tx3)"></span>
+      </div>
+      <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+        <div id="mapa-sidebar" style="width:260px;flex-shrink:0;border-right:1px solid var(--brd);overflow-y:auto;background:var(--surf);display:flex;flex-direction:column">
+          <div style="padding:10px 12px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--brd)">Técnicos</div>
+          <div id="mapa-tec-list" style="flex:1;overflow-y:auto;padding:8px"></div>
+          <div style="padding:10px 12px;border-top:1px solid var(--brd);font-size:10px;color:var(--tx3)">Powered by <b>Cobli</b> · Atualiza a cada 30s</div>
+        </div>
+        <div id="mapa-container" style="flex:1;position:relative;background:#e8f0e8">
+          <div id="leaflet-map" style="width:100%;height:100%"></div>
+          <div id="mapa-loading" style="position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:500">
+            <div class="big-spin"></div>
+            <div style="font-size:13px;color:var(--tx3)">Carregando localização dos veículos...</div>
+            <div style="font-size:11px;color:var(--tx3)" id="mapa-loading-sub">Configure a chave Cobli no Worker para começar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="screen-finalizado" class="screen">
       <div class="hdr"><span class="htitle">Histórico finalizado</span><div class="hsp"></div><span style="font-size:11.5px;color:var(--tx3)">Somente leitura</span></div>
       <div class="hf-wrap">
@@ -1232,39 +1295,58 @@ function startStaticListeners(){
     renderOnlineUsers();
   });
 
-  // Auditoria (últimos 100)
-  unsubs.auditoria=onSnapshot(query(collection(db,'auditoria'),orderBy('ts','desc')), snap=>{
-    S.auditoria=snap.docs.slice(0,100).map(d=>({id:d.id,...d.data()}));
-    if(document.getElementById('screen-auditoria').classList.contains('on')) renderAuditoria();
-  });
+  // Auditoria: carrega sob demanda ao abrir a tela (não onSnapshot — economiza leituras)
+  // Disparo manual em go('auditoria')
+}
+
+// ── POLLING de ordens (substitui onSnapshot — economiza ~90% das leituras)
+// onSnapshot: cobra 1 leitura/doc a cada mudança de qualquer usuário
+// Polling 30s: só busca quando aba está visível
+let _pollingInterval = null;
+let _pollingData = null;
+
+async function fetchOrdens(data){
+  if(document.hidden) return; // não busca se aba está oculta
+  try{
+    const {getDocs,collection,query,orderBy} = getFB();
+    const snap = await getDocs(query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')));
+    const now = Date.now();
+    S.ordens[data] = snap.docs.map(d=>{
+      const o = {id:d.id,data,...d.data()};
+      const saved = _recentSaves[o.id];
+      if(saved && (now - saved.ts) < 5000){ o.status = saved.status; }
+      else if(saved){ delete _recentSaves[o.id]; }
+      return o;
+    });
+    renderBoard();
+    if(data===TODAY_STR) renderTecnicos();
+    if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
+    if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
+  }catch(e){
+    if(e.code==='permission-denied') toast('Sem permissão para esta data.','err');
+  }
+}
+
+function _onVisibilityChange(){
+  if(!document.hidden && _pollingData) fetchOrdens(_pollingData);
 }
 
 function subscribeOrdens(data){
-  if(unsubs.ordens){unsubs.ordens();delete unsubs.ordens;}
-  const{onSnapshot,collection,query,orderBy}=getFB();
-  unsubs.ordens=onSnapshot(
-    query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')),
-    async snap=>{
-      const now = Date.now();
-      S.ordens[data]=snap.docs.map(d=>{
-        const o = {id:d.id,data,...d.data()};
-        // Se esta OS foi salva recentemente (< 5s), preservar o status local
-        const saved = _recentSaves[o.id];
-        if(saved && (now - saved.ts) < 5000){
-          o.status = saved.status;
-        } else if(saved){
-          delete _recentSaves[o.id]; // expirado, limpar
-        }
-        return o;
-      });
-      renderBoard();
-      if(data===TODAY_STR) renderTecnicos();
-      if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
-      if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
-    },
-    err=>{ if(err.code==='permission-denied') toast('Sem permissão para esta data.','err'); }
-  );
+  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval=null; }
+  if(unsubs.ordens){ unsubs.ordens(); delete unsubs.ordens; }
+  document.removeEventListener('visibilitychange',_onVisibilityChange);
+  _pollingData = data;
+  fetchOrdens(data); // busca imediata
+  _pollingInterval = setInterval(()=>{ if(!document.hidden) fetchOrdens(data); }, 60000);
+  document.addEventListener('visibilitychange',_onVisibilityChange);
 }
+
+function stopOrdens(){
+  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval=null; }
+  document.removeEventListener('visibilitychange',_onVisibilityChange);
+  _pollingData = null;
+}
+
 
 /* ── ANÁLISE POR IA (Gemini) ── */
 // Cole sua API key do Google AI Studio aqui (aistudio.google.com/apikey)
@@ -1349,6 +1431,9 @@ Regras importantes:
   }
 }
 window.analisarComIA = analisarComIA;
+
+
+
 
 /* ── ANÁLISE DE ROTA COMPLETA (todas as OS do técnico de uma vez) ── */
 async function analisarRotaComIA(){
@@ -1453,14 +1538,195 @@ Regras:
 }
 window.analisarRotaComIA = analisarRotaComIA;
 
-function subscribeTravas(data){
-  if(unsubs.travas){unsubs.travas();delete unsubs.travas;}
-  const{onSnapshot,collection}=getFB();
-  unsubs.travas=onSnapshot(collection(getDB(),`rotas/${data}/travas`), snap=>{
+/* ════════════════════════════════════════════════════════
+   MAPA DA FROTA — Integração Cobli + Leaflet
+════════════════════════════════════════════════════════ */
+// A chave Cobli fica protegida no mesmo Cloudflare Worker do Gemini
+// O Worker precisa suportar o endpoint /cobli além do /gemini
+const COBLI_PROXY_URL = 'https://gestaorotas-ia-proxy.eduardofelipess12.workers.dev/cobli';
+
+let _mapaLeaflet   = null;  // instância do mapa Leaflet
+let _mapaMarkers   = {};    // { techId: marker }
+let _mapaInterval  = null;  // timer de atualização
+let _mapaAtivo     = false; // se a tela está visível
+
+// ── Cores dos marcadores = cores dos técnicos no kanban ────────────────
+function _mapaGetTecCor(tec){
+  return tec?.color || '#378ADD';
+}
+
+// ── Criar ícone SVG personalizado por técnico ──────────────────────────
+function _mapaIcone(tec, velocidade){
+  const cor   = _mapaGetTecCor(tec);
+  const ini   = tec?.ini || '?';
+  const parado = !velocidade || velocidade < 2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+    <path d="M18 2C10.3 2 4 8.3 4 16c0 9.5 14 26 14 26S32 25.5 32 16C32 8.3 25.7 2 18 2z"
+      fill="${cor}" stroke="white" stroke-width="2"/>
+    <circle cx="18" cy="16" r="9" fill="white" opacity=".92"/>
+    <text x="18" y="20" font-family="DM Sans,system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="${cor}" text-anchor="middle">${ini}</text>
+    ${parado ? '' : `<circle cx="28" cy="6" r="5" fill="#1D9E75" stroke="white" stroke-width="1.5"/>
+    <text x="28" y="9.5" font-family="sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">▶</text>`}
+  </svg>`;
+  return L.divIcon({
+    html: svg, className: '', iconSize:[36,44], iconAnchor:[18,44], popupAnchor:[0,-44]
+  });
+}
+
+// ── Inicializar mapa Leaflet ────────────────────────────────────────────
+function _mapaInit(){
+  if(_mapaLeaflet) return;
+  _mapaLeaflet = L.map('leaflet-map', {
+    center: [-23.5505, -46.6333], // São Paulo
+    zoom: 11,
+    zoomControl: true
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }).addTo(_mapaLeaflet);
+}
+
+// ── Buscar localização dos veículos via proxy Cobli ────────────────────
+async function _mapaFetch(){
+  const btn = document.getElementById('mapa-refresh-btn');
+  if(btn) btn.disabled = true;
+  try{
+    const resp = await fetch(COBLI_PROXY_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ endpoint: '/herbie-1.1/devices' })
+    });
+    if(!resp.ok) throw new Error(`Cobli: HTTP ${resp.status}`);
+    const data = await resp.json();
+    return data.results || data.data || data || [];
+  }catch(e){
+    _mapaSetStatus('err', 'Erro: '+e.message);
+    return null;
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+// ── Atualizar marcadores e sidebar ─────────────────────────────────────
+async function _mapaUpdate(){
+  const veiculos = await _mapaFetch();
+  if(!veiculos) return;
+
+  const loading = document.getElementById('mapa-loading');
+  if(loading) loading.style.display = 'none';
+
+  // Cruzar veículos Cobli com técnicos do sistema pela placa
+  const agora = new Date();
+  let ativos = 0;
+  const list = document.getElementById('mapa-tec-list');
+  if(list) list.innerHTML = '';
+  const bounds = [];
+
+  veiculos.forEach(v => {
+    const placa = (v.vehicle?.license_plate || v.license_plate || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const tec   = S.tecnicos.find(t => (t.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,'') === placa);
+    const lat   = v.last_location?.latitude  || v.latitude;
+    const lng   = v.last_location?.longitude || v.longitude;
+    const vel   = v.last_location?.speed     || v.speed || 0;
+    const ligado= v.last_location?.ignition  || v.ignition || false;
+    const nome  = tec?.nome || v.vehicle?.name || v.name || placa || 'Desconhecido';
+    const cor   = _mapaGetTecCor(tec);
+    const id    = tec?.id || placa;
+    const parado = vel < 2;
+
+    if(!lat || !lng) return;
+    ativos++;
+    bounds.push([lat, lng]);
+
+    // Marcador no mapa
+    if(_mapaMarkers[id]){
+      _mapaMarkers[id].setLatLng([lat, lng]);
+      _mapaMarkers[id].setIcon(_mapaIcone(tec, vel));
+    } else {
+      _mapaMarkers[id] = L.marker([lat, lng], { icon: _mapaIcone(tec, vel) })
+        .addTo(_mapaLeaflet)
+        .bindPopup('');
+    }
+    _mapaMarkers[id].getPopup().setContent(`
+      <div style="font-family:DM Sans,sans-serif;min-width:160px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${nome}</div>
+        <div style="font-size:11px;color:#6b6960">🚗 ${placa}</div>
+        <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${ligado?'Ligado':'Desligado'} · ${parado?'Parado':`${Math.round(vel)} km/h`}</div>
+        ${tec ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">📋 ${(ordensForDate(currentDate).filter(o=>o.techId===tec.id).length)} OS hoje</div>` : ''}
+      </div>
+    `);
+
+    // Sidebar card
+    if(list){
+      const card = document.createElement('div');
+      card.className = 'mapa-tec-card';
+      card.innerHTML = `
+        <div style="width:32px;height:32px;border-radius:50%;background:${cor};color:${tec?.tx||'#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${tec?.ini||placa.slice(0,2)}</div>
+        <div class="mapa-tec-info">
+          <div class="mapa-tec-nome">${nome}</div>
+          <div class="mapa-tec-det">${placa} · ${ligado?'Ligado':'Desligado'}</div>
+        </div>
+        <span class="mapa-vel-badge${parado?' parado':''}">${parado?'Parado':`${Math.round(vel)} km/h`}</span>`;
+      card.onclick = () => {
+        _mapaLeaflet.setView([lat, lng], 15, {animate:true});
+        _mapaMarkers[id].openPopup();
+        document.querySelectorAll('.mapa-tec-card').forEach(c=>c.classList.remove('ativo'));
+        card.classList.add('ativo');
+      };
+      list.appendChild(card);
+    }
+  });
+
+  if(bounds.length > 1) _mapaLeaflet.fitBounds(bounds, {padding:[40,40]});
+  else if(bounds.length === 1) _mapaLeaflet.setView(bounds[0], 14);
+
+  const hora = agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  _mapaSetStatus('ok', `${ativos} veículo(s) online`);
+  const att = document.getElementById('mapa-ultima-att');
+  if(att) att.textContent = `Última att: ${hora}`;
+}
+
+function _mapaSetStatus(tipo, msg){
+  const dot = document.getElementById('mapa-dot');
+  const txt = document.getElementById('mapa-status-txt');
+  if(!dot||!txt) return;
+  const cores = {ok:'#1D9E75', err:'#b91c1c', warn:'#c47c0a', idle:'#9e9d96'};
+  dot.style.background = cores[tipo]||cores.idle;
+  txt.textContent = msg;
+}
+
+window.mapaRefresh = async function(){
+  if(!_mapaLeaflet) _mapaInit();
+  _mapaSetStatus('idle','Atualizando...');
+  await _mapaUpdate();
+};
+
+// ── Iniciar/parar polling ao entrar/sair da tela ──────────────────────
+function mapaEntrar(){
+  _mapaAtivo = true;
+  setTimeout(()=>{
+    _mapaInit();
+    _mapaLeaflet.invalidateSize();
+    _mapaUpdate();
+    _mapaInterval = setInterval(_mapaUpdate, 30000); // 30s
+  }, 150); // aguardar render do DOM
+}
+function mapaSair(){
+  _mapaAtivo = false;
+  if(_mapaInterval){ clearInterval(_mapaInterval); _mapaInterval=null; }
+}
+
+async function subscribeTravas(data){
+  // Carregar travas uma vez (sem onSnapshot — economiza leituras)
+  try{
+    const {getDocs,collection} = getFB();
+    const snap = await getDocs(collection(getDB(),`rotas/${data}/travas`));
     S.travas[data] = {};
     snap.docs.forEach(d=>{ S.travas[data][d.id] = d.data(); });
     renderBoard();
-  }, ()=>{ S.travas[data]={}; });
+  }catch(e){ S.travas[data]={}; }
 }
 
 let _travaTecId = null;
@@ -1500,6 +1766,7 @@ window.removerTrava = async function(tecId){
 };
 
 function stopAllListeners(){
+  stopOrdens(); // parar polling
   Object.values(unsubs).forEach(u=>{ try{u()}catch(e){} });
   Object.keys(unsubs).forEach(k=>delete unsubs[k]);
 }
@@ -1508,18 +1775,31 @@ function stopAllListeners(){
    NAV
 ═══════════════════════════════════════════════════════════ */
 function go(name,el){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
-  document.getElementById('screen-'+name).classList.add('on');
-  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
-  if(el) el.classList.add('on');
-  if(name==='relatorios'){ renderRelatorios(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
-  if(name==='calendario'){ renderCalendario(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
-  // Lazy renders para telas que não são ao vivo
-  if(name==='relatorios') renderRelatorios();
-  if(name==='calendario') renderCalendario();
-  if(name==='finalizado') renderFinalizado();
-  if(name==='auditoria')  renderAuditoria();
-  if(name==='dashboard')  renderDashboard();
+  // Fade out tela atual
+  const current = document.querySelector('.screen.on');
+  if(current) current.style.opacity = '0';
+
+  setTimeout(()=>{
+    document.querySelectorAll('.screen').forEach(s=>{ s.classList.remove('on'); s.style.opacity=''; });
+    document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+    const next = document.getElementById('screen-'+name);
+    if(next){ next.classList.add('on'); }
+    if(el) el.classList.add('on');
+    if(name==='relatorios'){ renderRelatorios(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
+    if(name==='calendario'){ renderCalendario(); if(!_carregandoHistorico) carregarHistoricoCompleto(); }
+    if(name==='mapa') mapaEntrar();
+    else mapaSair();
+    if(name==='finalizado') renderFinalizado();
+    if(name==='auditoria'){
+      // Carregar auditoria sob demanda (não fica em onSnapshot)
+      const {getDocs,collection,query,orderBy} = getFB();
+      getDocs(query(collection(getDB(),'auditoria'),orderBy('ts','desc'))).then(snap=>{
+        S.auditoria = snap.docs.slice(0,100).map(d=>({id:d.id,...d.data()}));
+        renderAuditoria();
+      }).catch(()=>renderAuditoria());
+    }
+    if(name==='dashboard')  renderDashboard();
+  }, 80); // tempo do fade out
 }
 function goToday(){ setCurrentDate(TODAY_STR); go('rotas',document.querySelector('.ni')); }
 
@@ -1878,6 +2158,8 @@ async function saveDrawer(){
         await logAudit(o.os,'edicao','Dados atualizados','gray');
       }
       closeDrawer(); toast('OS salva com sucesso','ok');
+      // Atualizar board imediatamente após save (não esperar o próximo ciclo de 30s)
+      if(_pollingData) setTimeout(()=>fetchOrdens(_pollingData), 300);
     }catch(e){toast('Erro ao salvar: '+e.message,'err');}
   };
   if(isFuture(currentDate)) confirmFuture(doSave); else doSave();
@@ -3170,48 +3452,27 @@ function setDashPeriod(p){
 }
 window.setDashPeriod = setDashPeriod;
 
-async function carregarDashMes(mes){
+async function carregarDashMes(mv){
+  // Usa cache S.ordens via getMes() — zero leituras duplicadas
+  if(_dashLoading) return;
   _dashLoading = true;
-  renderDashboard(); // mostra loading
-  try {
-    // Buscar todos os dias do mês que ainda não estão em cache
-    const [yr, mn] = mes.split('-').map(Number);
-    const diasNoMes = new Date(yr, mn, 0).getDate();
-    const {getDocs, collection, query: q} = getFB();
-    for(let d=1; d<=diasNoMes; d++){
-      const ds = `${yr}-${String(mn).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      if(S.ordens[ds]) continue; // já em cache
-      try {
-        const snap = await getDocs(q(collection(getDB(), `rotas/${ds}/ordens`)));
-        S.ordens[ds] = snap.docs.map(x=>({id:x.id, data:ds, ...x.data()}));
-      } catch(e){ S.ordens[ds] = []; }
-    }
-  } catch(e){ console.warn('carregarDashMes err:',e); }
+  await getMes(mv);
   _dashLoading = false;
   renderDashboard();
 }
 
 async function carregarDashAno(ano){
+  if(_dashLoading) return;
   _dashLoading = true;
-  renderDashboard();
-  try {
-    const {getDocs, collection, query: q} = getFB();
-    for(let m=1; m<=12; m++){
-      const mesKey = `${ano}-${String(m).padStart(2,'0')}`;
-      const diasNoMes = new Date(ano, m, 0).getDate();
-      for(let d=1; d<=diasNoMes; d++){
-        const ds = `${mesKey}-${String(d).padStart(2,'0')}`;
-        if(S.ordens[ds]) continue;
-        try {
-          const snap = await getDocs(q(collection(getDB(), `rotas/${ds}/ordens`)));
-          S.ordens[ds] = snap.docs.map(x=>({id:x.id, data:ds, ...x.data()}));
-        } catch(e){ S.ordens[ds] = []; }
-      }
-    }
-  } catch(e){ console.warn('carregarDashAno err:',e); }
+  // Usar getMes() para cada mês — respeita cache, zero leituras duplicadas
+  for(let m=1; m<=12; m++){
+    const mv = `${ano}-${String(m).padStart(2,'0')}`;
+    await getMes(mv);
+  }
   _dashLoading = false;
   renderDashboard();
 }
+
 
 function getDashOrdens(){
   if(dashPeriod==='dia')   return ordensForDate(currentDate);
@@ -3527,37 +3788,59 @@ function doPrintPDF(){
 /* ═══════════════════════════════════════════════════════════
    CSV
 ═══════════════════════════════════════════════════════════ */
-/* ── CARREGAMENTO HISTÓRICO CENTRAL ── */
-// Carrega todos os meses do ano atual + mês anterior automaticamente no boot
-// alimenta S.ordens para calendário, relatório e dashboard sem clique
+/* ══════════════════════════════════════════════════════
+   CARREGAMENTO OTIMIZADO — uma única fonte de verdade
+   Regra: NUNCA ler do Firestore se já está em S.ordens
+══════════════════════════════════════════════════════ */
+
+// Lê UM mês do Firestore e armazena em S.ordens (com cache)
+// Retorna true se fez leitura, false se usou cache
+async function getMes(mv){
+  const {getDocs,collection,query,orderBy} = getFB();
+  const [yr,mn] = mv.split('-').map(Number);
+  const diasNoMes = new Date(yr,mn,0).getDate();
+  let leituras = 0;
+  for(let dia=1; dia<=diasNoMes; dia++){
+    const ds = `${mv}-${String(dia).padStart(2,'0')}`;
+    if(S.ordens[ds] !== undefined) continue; // já em cache → pular
+    if(ds > TODAY_STR){ S.ordens[ds]=[]; continue; } // futuro → pular
+    try{
+      const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
+      S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
+      leituras++;
+    }catch(e){ S.ordens[ds]=[]; }
+  }
+  return leituras;
+}
+
+// Lê um dia específico (com cache)
+async function getDia(ds){
+  if(S.ordens[ds] !== undefined) return 0; // cache
+  if(ds > TODAY_STR){ S.ordens[ds]=[]; return 0; }
+  try{
+    const {getDocs,collection,query,orderBy} = getFB();
+    const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
+    S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
+    return 1;
+  }catch(e){ S.ordens[ds]=[]; return 0; }
+}
+// Carrega apenas o mês atual e anterior no boot — resto é sob demanda
+// Isso reduz de até 365 leituras para ~60 leituras no boot
 let _carregandoHistorico = false;
 async function carregarHistoricoCompleto(){
   if(_carregandoHistorico) return;
   _carregandoHistorico = true;
-  const {getDocs,collection,query,orderBy} = getFB();
   const hoje = new Date();
-  // Carregar mês atual + 11 meses anteriores (1 ano completo)
-  for(let i=0; i<12; i++){
-    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+  // Boot: só mês atual + 1 anterior
+  for(let i=0; i<=1; i++){
+    const d  = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
     const mv = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const diasNoMes = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
-    for(let dia=1; dia<=diasNoMes; dia++){
-      const ds = `${mv}-${String(dia).padStart(2,'0')}`;
-      if(S.ordens[ds] !== undefined) continue; // já carregado
-      // Não buscar datas futuras
-      if(ds > TODAY_STR){ S.ordens[ds]=[]; continue; }
-      try{
-        const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
-        S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
-      }catch(e){ S.ordens[ds]=[]; }
-    }
-    // Atualizar calendário e relatório a cada mês carregado
+    await getMes(mv);
     if(document.getElementById('screen-calendario')?.classList.contains('on')) renderCalendario();
     if(document.getElementById('screen-relatorios')?.classList.contains('on')) renderRelatorios();
     if(document.getElementById('screen-dashboard')?.classList.contains('on')) renderDashboard();
   }
   _carregandoHistorico = false;
-  // Renderizar tudo após carregar
   renderCalendario();
   renderRelatorios();
 }
@@ -3565,28 +3848,11 @@ async function carregarHistoricoCompleto(){
 /* ── CARREGAR MÊS DOS RELATÓRIOS DO FIRESTORE ── */
 let _relLoading = false;
 async function loadRelMes(){
-  // Se ainda está carregando histórico, só renderizar o que tem
-  renderRelatorios();
-  // Se o mês selecionado não tem dados ainda, carregar especificamente
+  renderRelatorios(); // renderizar com o que tem em cache
   const mv = document.getElementById('rel-month')?.value ||
     `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-  const jaTemDados = Object.keys(S.ordens).some(d=>d.startsWith(mv) && S.ordens[d].length>0);
-  if(!jaTemDados){
-    const {getDocs,collection,query,orderBy} = getFB();
-    const [yr,mn] = mv.split('-').map(Number);
-    const diasNoMes = new Date(yr,mn,0).getDate();
-    const wrap = document.getElementById('rel-content');
-    if(wrap && !wrap.querySelector('.rel-kpis')) wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--tx3)"><div class="big-spin"></div><span style="font-size:13px">Carregando ${mv}...</span></div>`;
-    for(let d=1;d<=diasNoMes;d++){
-      const ds = `${mv}-${String(d).padStart(2,'0')}`;
-      if(S.ordens[ds]!==undefined) continue;
-      try{
-        const snap = await getDocs(query(collection(getDB(),`rotas/${ds}/ordens`),orderBy('posicao','asc')));
-        S.ordens[ds] = snap.docs.map(x=>({id:x.id,data:ds,...x.data()}));
-      }catch(e){ S.ordens[ds]=[]; }
-    }
-    renderRelatorios();
-  }
+  const leituras = await getMes(mv); // 0 leituras se já em cache
+  if(leituras > 0) renderRelatorios(); // só re-renderiza se buscou algo novo
 }
 
 function exportCSV(){
