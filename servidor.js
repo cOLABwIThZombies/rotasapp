@@ -3,7 +3,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve arquivos estáticos da raiz do projeto
+app.use(express.static(__dirname));
 
 // ── Endpoint de status para teste via cURL ──────────────────────
 app.get('/api/status', (req, res) => {
@@ -15,8 +16,9 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Qualquer outra rota devolve o index.html (da raiz)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => {
