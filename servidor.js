@@ -7,7 +7,10 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ══════════════════════════════════════════════════════════════
-// FIREBASE ADMIN — lê a credencial da variável de ambiente
+// FIREBASE ADMIN — lê a credencial da variável de ambiente do Render
+// Configure no Render → Environment:
+//   FIREBASE_CREDENCIAL → cole TODO o conteúdo do JSON da service account
+//   API_AGENTE_KEY      → uma senha que você inventa (o agente do RD usa)
 // ══════════════════════════════════════════════════════════════
 const admin = require('firebase-admin');
 let dbPronto = false;
@@ -19,18 +22,33 @@ try {
     dbPronto = true;
     console.log('✓ Firebase Admin conectado');
   } else {
-    console.warn('⚠ FIREBASE_CREDENCIAL não configurada — /api/visita indisponível');
+    console.warn('⚠ FIREBASE_CREDENCIAL não configurada — /api/visitas indisponível');
   }
 } catch (e) {
   console.error('✗ Erro ao conectar Firebase:', e.message);
 }
 
 const AGENTE_KEY = process.env.API_AGENTE_KEY || 'chave-de-teste';
+
+// ── Normaliza telefone: só números ──────────────────────────────
 const soNumeros = s => String(s || '').replace(/\D/g, '');
+
+// Normaliza telefone para comparação: remove o 55 (código do Brasil) e
+// o 9 extra de celular, pegando só os últimos 8 dígitos (o número base)
+// Assim "5511948901713", "11948901713" e "948901713" batem entre si
+function telBate(telFirestore, telBusca) {
+  const a = soNumeros(telFirestore);
+  const b = soNumeros(telBusca);
+  if (!a || !b) return false;
+  // Compara pelos últimos 8 dígitos (parte que nunca muda)
+  const fim = n => n.slice(-8);
+  return fim(a) === fim(b);
+}
 
 // ══════════════════════════════════════════════════════════════
 // GET /api/visita — o agente do RD busca a visita do cliente
-// Parâmetros: ?telefone= | ?os= | ?nome=   Header: x-api-key
+// Parâmetros (qualquer um): ?telefone= | ?os= | ?nome=
+// Header obrigatório: x-api-key
 // ══════════════════════════════════════════════════════════════
 app.get('/api/visita', async (req, res) => {
   const chave = req.headers['x-api-key'] || req.query.key;
@@ -48,6 +66,7 @@ app.get('/api/visita', async (req, res) => {
 
   try {
     const db = admin.firestore();
+    // Buscar nos últimos 30 dias + próximos 30 dias
     const hoje = new Date();
     const resultados = [];
 
@@ -59,12 +78,13 @@ app.get('/api/visita', async (req, res) => {
       const snap = await db.collection(`rotas/${ds}/ordens`).get();
       snap.forEach(doc => {
         const o = doc.data();
-        const matchTel  = telefone && soNumeros(o.tel).includes(soNumeros(telefone));
+        const matchTel  = telefone && telBate(o.tel, telefone);
         const matchOS   = os && String(o.os) === String(os);
         const matchNome = nome && (o.nome_cliente || '').toLowerCase().includes(nome.toLowerCase());
 
         if (matchTel || matchOS || matchNome) {
           const STATUS = { finalizado: 'Finalizado', pendente: 'Aguardando atendimento', em_progresso: 'Em andamento' };
+          const tec = o.techNome || '';
           resultados.push({
             os:        String(o.os || ''),
             cliente:   o.nome_cliente || '',
@@ -72,7 +92,7 @@ app.get('/api/visita', async (req, res) => {
             data_br:   ds.split('-').reverse().join('/'),
             periodo:   o.periodo === 'tarde' ? 'tarde' : 'manhã',
             status:    STATUS[o.status] || o.status || '',
-            tecnico:   o.techNome || '',
+            tecnico:   tec,
             endereco:  [o.endereco, o.bairro].filter(Boolean).join(', '),
           });
         }
@@ -80,8 +100,10 @@ app.get('/api/visita', async (req, res) => {
     }
 
     if (resultados.length === 0) {
-      return res.json({ encontrado: false, mensagem: 'Nenhuma visita encontrada.' });
+      return res.json({ encontrado: false, mensagem: 'Nenhuma visita encontrada para os dados informados.' });
     }
+
+    // Ordena por data (mais próxima primeiro)
     resultados.sort((a, b) => a.data.localeCompare(b.data));
     res.json({ encontrado: true, total: resultados.length, visitas: resultados });
 
