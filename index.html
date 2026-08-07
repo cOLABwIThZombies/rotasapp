@@ -206,6 +206,8 @@ button,select,input,textarea{font-family:inherit}
 .lane-lock-banner{background:var(--err-bg);border-bottom:1px solid #fca5a5;padding:6px 13px;font-size:11.5px;color:var(--err-tx);display:flex;align-items:center;gap:6px}
 .lane-lock-banner svg{width:13px;height:13px;flex-shrink:0}
 .lane.locked .lcrow{opacity:.45;pointer-events:none}
+.lane.tec-inativo{opacity:.72;border-style:dashed}
+.lane.tec-inativo .lhdr{background:var(--surf2)}
 .lock-modal-input{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--brd);border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit}
 .lock-modal-input:focus{border-color:var(--err)}
 .btn-ia{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid #8b5cf6;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .12s;white-space:nowrap}
@@ -1115,7 +1117,7 @@ const FER_SP =['01-25','07-09'];
 
 // Estado em memória — populado pelos listeners do Firestore
 const S = {
-  tecnicos:[], auxiliares:[], tipos:[], cargos:[], usuarios:[],
+  tecnicos:[], tecnicosAtivos:[], auxiliares:[], tipos:[], cargos:[], usuarios:[],
   ordens:{},      // { "YYYY-MM-DD": [os,...] }
   auditoria:[],
   travas:{},      // { "YYYY-MM-DD": { techId: {motivo, user, ts} } }
@@ -1148,6 +1150,86 @@ const nowTime  = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',min
 function getTodayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const TODAY_STR = getTodayStr();
 const ordensForDate = d => S.ordens[d] || [];
+
+/* ══════════════════════════════════════════════════════════
+   MODO DEMONSTRAÇÃO — dados fictícios para prints seguros
+   Ativa/desativa com Ctrl+Shift+D
+   NÃO altera o Firestore — só a visualização em memória
+══════════════════════════════════════════════════════════ */
+let _demoAtivo = false;
+let _demoBackup = null; // guarda os dados reais
+
+const DEMO_NOMES = ['Carlos Silva','André Souza','Bruno Costa','Diego Alves','Felipe Rocha','Rafael Lima'];
+const DEMO_AUX   = ['João P.','Marcos R.','Pedro H.','Lucas M.'];
+
+function toggleDemo(){
+  if(!_demoAtivo){
+    // ── ATIVAR: fazer backup e mascarar dados ──
+    _demoBackup = {
+      tecnicos: JSON.parse(JSON.stringify(S.tecnicos)),
+      auxiliares: JSON.parse(JSON.stringify(S.auxiliares)),
+      ordens: JSON.parse(JSON.stringify(S.ordens)),
+      user: window._currentUser ? {...window._currentUser} : null,
+    };
+    // Mascarar nomes de técnicos
+    S.tecnicos.forEach((t,i)=>{
+      t.nome = DEMO_NOMES[i % DEMO_NOMES.length];
+      const partes = t.nome.split(' ');
+      t.ini = (partes[0][0]+(partes[1]?.[0]||'')).toUpperCase();
+      t.placa = 'ABC' + String(1000+i).slice(0,4);
+      t.veiculo = ['Fiorino','Kangoo','Saveiro','Strada','Doblo'][i%5];
+    });
+    // Mascarar auxiliares
+    S.auxiliares.forEach((a,i)=>{ a.nome = DEMO_AUX[i % DEMO_AUX.length]; });
+    // Mascarar OS: número, cliente, endereço, valores
+    let osCounter = 1001;
+    Object.keys(S.ordens).forEach(data=>{
+      S.ordens[data].forEach(o=>{
+        o.os = String(9000000000 + osCounter++);
+        o.nome_cliente = 'Cliente ' + (osCounter % 100);
+        o.endereco = 'Rua Exemplo, ' + (osCounter % 900 + 100);
+        o.complemento = '';
+        o.tel = '(11) 9' + String(1000+osCounter%9000) + '-0000';
+        o.serial = 'SN' + String(100000+osCounter);
+        o.bairro = ['Centro','Jardim','Vila Nova','Alphaville','Moema'][osCounter%5];
+        if(o.valor && parseFloat(o.valor)>0) o.valor = String((Math.floor(osCounter%15)*50 + 100));
+      });
+    });
+    // Mascarar usuário logado no header
+    if(window._currentUser){ window._currentUser = {...window._currentUser, nome:'Usuário Demo'}; }
+    _demoAtivo = true;
+    toast('🎬 Modo demonstração ATIVADO — dados fictícios','ok');
+  } else {
+    // ── DESATIVAR: restaurar dados reais ──
+    if(_demoBackup){
+      S.tecnicos = _demoBackup.tecnicos;
+      S.auxiliares = _demoBackup.auxiliares;
+      S.ordens = _demoBackup.ordens;
+      if(_demoBackup.user) window._currentUser = _demoBackup.user;
+      _demoBackup = null;
+    }
+    _demoAtivo = false;
+    toast('Modo demonstração desativado — dados reais','info');
+  }
+  // Re-renderizar tudo
+  try{ populateSelects(); renderBoard(); renderTecnicos(); renderVeiculos(); }catch(e){}
+  try{ if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard(); }catch(e){}
+  try{ if(document.getElementById('screen-auxiliares').classList.contains('on')) renderAuxiliares(); }catch(e){}
+  // Atualizar header do usuário
+  try{
+    const nm = document.getElementById('sav-nm');
+    if(nm) nm.textContent = _demoAtivo ? 'Demo' : (_demoBackup?.user?.nome||window._currentUser?.nome||'').split(' ')[0];
+  }catch(e){}
+}
+
+// Atalho: Ctrl+Shift+D
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey && e.shiftKey && (e.key==='D'||e.key==='d')){
+    e.preventDefault();
+    toggleDemo();
+  }
+});
+window.toggleDemo = toggleDemo;
 
 // Monta endereço completo: nome/endereço + complemento + bairro + CEP
 const fmtEndereco = o => {
@@ -1260,7 +1342,8 @@ function waitForData(){
 async function loadTecnicos(){
   const{getDocs,collection,query,orderBy}=getFB();
   const snap=await getDocs(query(collection(getDB(),'tecnicos'),orderBy('ordem','asc')));
-  S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>t.ativo!==false);
+  S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})); // TODOS (inclui inativos p/ histórico)
+  S.tecnicosAtivos=S.tecnicos.filter(t=>t.ativo!==false); // só ativos p/ atribuição
   populateSelects(); renderTecnicos(); renderVeiculos();
 }
 async function loadAuxiliares(){
@@ -1351,8 +1434,7 @@ function stopOrdens(){
 /* ── ANÁLISE POR IA (Gemini) ── */
 // Cole sua API key do Google AI Studio aqui (aistudio.google.com/apikey)
 // A chave da API fica protegida no Cloudflare Worker — nunca aparece aqui
-const GEMINI_PROXY_URL = 'https://gestaorotas-ia-proxy.eduardofelipess12.workers.dev';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_PROXY_URL = '/api/ia'; // Proxy via servidor.js — chave protegida no Render
 
 async function analisarComIA(prefix){
   const modeloEl   = document.getElementById(prefix==='m'?'m-modelo':'de-modelo');
@@ -1397,13 +1479,7 @@ Regras importantes:
     const resp = await fetch(GEMINI_PROXY_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: GEMINI_MODEL,
-        payload: {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 300 }
-        }
-      })
+      body: JSON.stringify({ prompt, maxTokens: 300 })
     });
     if(!resp.ok){
       const errData = await resp.json().catch(()=>({}));
@@ -1478,13 +1554,7 @@ Regras:
     const resp = await fetch(GEMINI_PROXY_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: GEMINI_MODEL,
-        payload: {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 4000, responseMimeType: 'application/json' }
-        }
-      })
+      body: JSON.stringify({ prompt, maxTokens: 4000, json: true })
     });
     if(!resp.ok){
       const errData = await resp.json().catch(()=>({}));
@@ -1543,7 +1613,7 @@ window.analisarRotaComIA = analisarRotaComIA;
 ════════════════════════════════════════════════════════ */
 // A chave Cobli fica protegida no mesmo Cloudflare Worker do Gemini
 // O Worker precisa suportar o endpoint /cobli além do /gemini
-const COBLI_PROXY_URL = 'https://gestaorotas-ia-proxy.eduardofelipess12.workers.dev/cobli';
+const COBLI_PROXY_URL = '/api/cobli'; // via servidor.js — chave protegida no Render
 
 let _mapaLeaflet   = null;  // instância do mapa Leaflet
 let _mapaMarkers   = {};    // { techId: marker }
@@ -1823,7 +1893,7 @@ function setCurrentDate(d){
    SELECTS & POPULATES
 ═══════════════════════════════════════════════════════════ */
 function populateSelects(){
-  const tO=S.tecnicos.map(t=>`<option value="${t.id}">${t.nome}</option>`).join('');
+  const tO=(S.tecnicosAtivos||S.tecnicos).filter(t=>t.ativo!==false).map(t=>`<option value="${t.id}">${t.nome}</option>`).join('');
   const tiO=S.tipos.map(t=>`<option value="${t.label}">${t.label}</option>`).join('');
   ['m-tec','de-tec'].forEach(id=>{const s=document.getElementById(id);if(s&&s.innerHTML!==tO)s.innerHTML=tO;});
   ['m-tipo','de-tipo'].forEach(id=>{const s=document.getElementById(id);if(s&&s.innerHTML!==tiO)s.innerHTML=tiO;});
@@ -1886,6 +1956,13 @@ function updateStats(){
    BOARD — renderização otimizada com DocumentFragment
 ═══════════════════════════════════════════════════════════ */
 function renderBoard(){
+  const dateOsPre=ordensForDate(currentDate);
+  // Técnicos ativos SEMPRE + técnicos inativos QUE TÊM OS nesta data (histórico)
+  const ativos = (S.tecnicosAtivos||S.tecnicos.filter(t=>t.ativo!==false));
+  const inativosComOS = S.tecnicos.filter(t=>
+    t.ativo===false && dateOsPre.some(o=>o.techId===t.id)
+  );
+  const _tecsBoard = [...ativos, ...inativosComOS];
   updateStats();
   const board=document.getElementById('board');
   if(!S.tecnicos.length){
@@ -1894,20 +1971,21 @@ function renderBoard(){
   }
   const frag=document.createDocumentFragment();
   const dateOs=ordensForDate(currentDate);
-  S.tecnicos.forEach(t=>{
+  _tecsBoard.forEach(t=>{
     const all=dateOs.filter(o=>o.techId===t.id);
     const filtered=all.filter(o=>visOS(o));
     const rod=isRodizio(t.id);
     const aux=getAux(t.id);
     const trava=(S.travas[currentDate]||{})[t.id];
-    const lane=document.createElement('div'); lane.className='lane'+(trava?' locked':''); lane.dataset.tid=t.id;
+    const tecInativo = t.ativo===false;
+    const lane=document.createElement('div'); lane.className='lane'+(trava?' locked':'')+(tecInativo?' tec-inativo':''); lane.dataset.tid=t.id;
     const auxHtml=aux&&aux.nome&&aux.nome.toLowerCase()!=='na'
       ?`<span class="taux-name">${aux.nome}</span>`
       :`<span style="font-size:10px;color:var(--tx3)">Sem aux.</span>`;
     lane.innerHTML=`<div class="lhdr">
       <div class="tav" style="background:${t.color||'#eee'};color:${t.tx||'#333'}">${t.ini||t.nome.slice(0,2).toUpperCase()}</div>
       <div class="linfo">
-        <div class="tname">${t.nome}</div>
+        <div class="tname">${t.nome}${tecInativo?' <span style="background:var(--err-bg);color:var(--err-tx);padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;vertical-align:middle">INATIVO</span>':''}</div>
         <div class="taux">${auxHtml}<button class="btn-aux" onclick="openTrocaAux('${t.id}');event.stopPropagation()">⇄</button></div>
         <div class="vinfo"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="5" width="12" height="7" rx="1.5"/><path d="M3 5l1.2-2.5h5.6L11 5"/><circle cx="4" cy="12" r="1"/><circle cx="10" cy="12" r="1"/></svg>${t.veiculo||'—'} · ${t.placa||'—'}</div>
       </div>
@@ -1921,22 +1999,25 @@ function renderBoard(){
       </button>
     </div>${trava?`<div class="lane-lock-banner"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="8" height="6" rx="1"/><path d="M5 6V4a2 2 0 0 1 4 0v2"/></svg><span><b>Rota travada:</b> ${trava.motivo}</span><button onclick="removerTrava('${t.id}');event.stopPropagation()" style="margin-left:auto;background:none;border:none;color:var(--err-tx);cursor:pointer;font-size:11px;text-decoration:underline">Remover</button></div>`:''}<div class="lcrow" id="lcrow-${t.id}"></div>`;
     frag.appendChild(lane);
-    // Drag events na lane
-    lane.addEventListener('dragover',e=>{e.preventDefault();lane.classList.add('dov')});
-    lane.addEventListener('dragleave',()=>lane.classList.remove('dov'));
-    lane.addEventListener('drop',e=>{e.preventDefault();lane.classList.remove('dov');dropOnLane(t.id)});
+    // Drag events na lane (bloqueado se técnico inativo)
+    if(!tecInativo){
+      lane.addEventListener('dragover',e=>{e.preventDefault();lane.classList.add('dov')});
+      lane.addEventListener('dragleave',()=>lane.classList.remove('dov'));
+      lane.addEventListener('drop',e=>{e.preventDefault();lane.classList.remove('dov');dropOnLane(t.id)});
+    }
     // Montar cards depois de inserido no frag
     lane._pendingCards={filtered,all,t};
   });
   board.innerHTML='';
   board.appendChild(frag);
   // Segunda passagem: preencher cards (após DOM atualizado)
-  S.tecnicos.forEach(t=>{
+  _tecsBoard.forEach(t=>{
     const crow=document.getElementById('lcrow-'+t.id); if(!crow)return;
     const lane=crow.parentElement;
     const{filtered,all}=lane._pendingCards||{filtered:[],all:[]};
     filtered.forEach(o=>crow.appendChild(makeCard(o)));
-    if(all.length<10){
+    const tecInativo = t.ativo===false;
+    if(all.length<10 && !tecInativo){
       const sl=document.createElement('div'); sl.className='empty-slot';
       sl.innerHTML=`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2v10M2 7h10"/></svg>${10-all.length} livre${10-all.length!==1?'s':''}`;
       sl.addEventListener('dragover',e=>{e.preventDefault();sl.classList.add('dov')});
@@ -1944,10 +2025,12 @@ function renderBoard(){
       sl.addEventListener('drop',e=>{e.preventDefault();sl.classList.remove('dov');dropOnLane(t.id)});
       crow.appendChild(sl);
     }
-    const ab=document.createElement('button'); ab.className='add-card';
-    ab.innerHTML=`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2v10M2 7h10"/></svg>Nova OS`;
-    ab.onclick=()=>{document.getElementById('m-tec').value=t.id;openModalOS()};
-    crow.appendChild(ab);
+    if(!tecInativo){
+      const ab=document.createElement('button'); ab.className='add-card';
+      ab.innerHTML=`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2v10M2 7h10"/></svg>Nova OS`;
+      ab.onclick=()=>{document.getElementById('m-tec').value=t.id;openModalOS()};
+      crow.appendChild(ab);
+    }
   });
 }
 
@@ -1969,7 +2052,7 @@ function makeCard(o){
     </div>`:''}
     ${o.valor?('<div class="osc-val">'+fmtBRL(o.valor)+'</div>'):''}
     <div class="osc-foot">
-      <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${[o.endereco,o.complemento].filter(Boolean).join(', ')||o.bairro||'—'}</div>
+      <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.cep||o.bairro||'—'}</div>
       <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':'otag-t'}">${o.periodo==='manha'?'Mnh':'Trd'}</span></div>
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
@@ -2167,13 +2250,23 @@ async function saveDrawer(){
 
 async function deleteOS(){
   const o=ordensForDate(currentDate).find(x=>x.id===drawerOsId); if(!o)return;
-  confirm2(`Remover OS #${o.os}?`,'Esta ação não pode ser desfeita.',async()=>{
-    try{
-      await getFB().deleteDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId));
-      await logAudit(o.os,'remocao','OS removida','err');
-      closeDrawer(); toast('OS removida');
-    }catch(e){toast('Erro: '+e.message,'err');}
-  });
+  // Bloquear exclusão de OS finalizadas — apenas admin pode
+  if(o.status==='finalizado' && !isAdmin()){
+    toast('OS finalizada não pode ser removida. Contate o administrador.','warn');
+    return;
+  }
+  confirm2(
+    `Remover OS #${o.os} permanentemente?`,
+    `<span style="color:#b91c1c;font-weight:600">⚠ Esta ação é irreversível.</span><br>A OS será excluída do Firestore e não poderá ser recuperada.`,
+    async()=>{
+      try{
+        await getFB().deleteDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId));
+        await logAudit(o.os,'remocao',`OS #${o.os} excluída por ${window._currentUser?.nome||'?'}','err`);
+        closeDrawer(); toast('OS removida');
+      }catch(e){toast('Erro: '+e.message,'err');}
+    },
+    'Sim, excluir permanentemente'
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3950,14 +4043,17 @@ function renderTecnicos(){
   tbody.innerHTML=S.tecnicos.length?S.tecnicos.map(t=>{
     const cnt=todayOs.filter(o=>o.techId===t.id).length;
     const aux=getAux(t.id);
-    return `<tr>
-      <td><div style="display:flex;align-items:center;gap:8px"><div style="width:26px;height:26px;border-radius:50%;background:${t.color||'#eee'};color:${t.tx||'#333'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0">${t.ini||'?'}</div><div><div style="font-weight:500">${t.nome}</div></div></div></td>
+    const inativo = t.ativo===false;
+    return `<tr style="${inativo?'opacity:.55':''}">
+      <td><div style="display:flex;align-items:center;gap:8px"><div style="width:26px;height:26px;border-radius:50%;background:${t.color||'#eee'};color:${t.tx||'#333'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0">${t.ini||'?'}</div><div><div style="font-weight:500">${t.nome} ${inativo?'<span style="background:var(--err-bg);color:var(--err-tx);padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;margin-left:4px">INATIVO</span>':''}</div></div></div></td>
       <td style="font-size:12px"><div style="font-weight:500">${t.veiculo||'—'}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--tx3)">${t.placa||'—'}</div></td>
       <td>${aux&&aux.nome&&aux.nome.toLowerCase()!=='na'?`<span style="background:var(--ow-bg);color:var(--ow-tx);padding:2px 7px;border-radius:4px;font-size:11px;font-weight:500">${aux.nome}</span>`:'<span style="color:var(--tx3);font-size:11px">—</span>'}</td>
       <td><b>${cnt}</b><span style="color:var(--tx3);font-size:11px">/10</span></td>
       <td style="text-align:right">
-        <button class="btn-ghost" style="font-size:11.5px;padding:4px 9px" onclick="openTecForm('${t.id}')">Editar</button>
-        <button class="btn-ghost" style="font-size:11.5px;padding:4px 9px;color:var(--err);margin-left:4px" onclick="removeTec('${t.id}')">Remover</button>
+        ${inativo
+          ? (isAdmin()?`<button class="btn-ghost" style="font-size:11.5px;padding:4px 9px;color:var(--ok-tx)" onclick="reativarTec('${t.id}')">↺ Reativar</button>`:'<span style="color:var(--tx3);font-size:11px">—</span>')
+          : `<button class="btn-ghost" style="font-size:11.5px;padding:4px 9px" onclick="openTecForm('${t.id}')">Editar</button>
+             ${isAdmin()?`<button class="btn-ghost" style="font-size:11.5px;padding:4px 9px;color:var(--err);margin-left:4px" onclick="removeTec('${t.id}')">Remover</button>`:''}`}
       </td></tr>`;
   }).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">Nenhum técnico cadastrado.</td></tr>';
 }
@@ -3994,11 +4090,53 @@ function openTecForm(id){
   openModal('modal-form');
 }
 function removeTec(id){
-  const t=S.tecnicos.find(x=>x.id===id);
-  confirm2(`Remover ${t?.nome}?`,'OS atribuídas não serão apagadas.',async()=>{
-    try{await getFB().updateDoc(getFB().doc(getDB(),'tecnicos',id),{ativo:false});toast('Técnico removido');}
-    catch(e){toast('Erro: '+e.message,'err');}
+  const t = S.tecnicos.find(x=>x.id===id);
+  if(!t) return;
+  // Contar OS vinculadas ao técnico
+  const totalOS = Object.values(S.ordens).flat().filter(o=>o.techId===id).length;
+  const nome = t.nome;
+  // Pedir confirmação com digitação do nome
+  const modal = document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`
+    <div style="background:#fff;border-radius:14px;padding:24px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:15px;font-weight:700;color:#b91c1c;margin-bottom:8px">⚠ Remover técnico?</div>
+      <div style="font-size:13px;color:#444;margin-bottom:6px">Técnico: <b>${nome}</b></div>
+      <div style="font-size:12px;color:#b91c1c;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;margin-bottom:14px">
+        ${totalOS > 0 ? `Este técnico possui <b>${totalOS} OS</b> vinculadas no histórico.` : 'Nenhuma OS vinculada.'}<br>
+        Esta ação marca o técnico como inativo. Seus dados históricos são preservados.
+      </div>
+      <div style="font-size:12px;color:#666;margin-bottom:6px">Para confirmar, digite o nome do técnico:</div>
+      <input id="confirm-tec-input" placeholder="${nome}" style="width:100%;padding:8px 10px;border:1px solid #e2e0d8;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:12px">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="confirm-tec-cancel" style="padding:8px 16px;border:1px solid #e2e0d8;border-radius:8px;background:#fff;cursor:pointer;font-size:13px">Cancelar</button>
+        <button id="confirm-tec-ok" disabled style="padding:8px 16px;border:none;border-radius:8px;background:#b91c1c;color:#fff;cursor:pointer;font-size:13px;opacity:.5">Remover</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const input = modal.querySelector('#confirm-tec-input');
+  const btnOk = modal.querySelector('#confirm-tec-ok');
+  const btnCancel = modal.querySelector('#confirm-tec-cancel');
+  input.addEventListener('input', ()=>{
+    const match = input.value.trim().toLowerCase() === nome.toLowerCase();
+    btnOk.disabled = !match;
+    btnOk.style.opacity = match ? '1' : '.5';
   });
+  btnCancel.onclick = ()=>document.body.removeChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) document.body.removeChild(modal); });
+  btnOk.onclick = async()=>{
+    document.body.removeChild(modal);
+    try{
+      await getFB().updateDoc(getFB().doc(getDB(),'tecnicos',id),{
+        ativo: false,
+        removidoEm: getFB().serverTimestamp(),
+        removidoPor: getUID()||'Sistema',
+      });
+      await logAudit(t.nome||id, 'remocao', `Técnico "${nome}" marcado como inativo`, 'err');
+      toast('Técnico removido');
+      await loadTecnicos();
+    }catch(e){ toast('Erro: '+e.message,'err'); }
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4367,6 +4505,20 @@ window.clearHF = clearHF;
 window.renderFinalizado = renderFinalizado;
 window.openTecForm = openTecForm;
 window.removeTec = removeTec;
+
+async function reativarTec(id){
+  const t = S.tecnicos.find(x=>x.id===id);
+  if(!t) return;
+  if(!confirm(`Reativar o técnico "${t.nome}"? Ele voltará a aparecer no quadro de rotas.`)) return;
+  try{
+    await getFB().updateDoc(getFB().doc(getDB(),'tecnicos',id),{ativo:true});
+    await logAudit(t.nome||id,'edicao',`Técnico "${t.nome}" reativado`,'ok');
+    toast('Técnico reativado','ok');
+    await loadTecnicos();
+    renderTecnicos();
+  }catch(e){ toast('Erro: '+e.message,'err'); }
+}
+window.reativarTec = reativarTec;
 window.openAuxForm = openAuxForm;
 window.openTrocaAux = openTrocaAux;
 window.openUserForm = openUserForm;
