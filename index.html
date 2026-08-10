@@ -2225,6 +2225,14 @@ async function saveDrawer(){
       pecas_lista:drwPecas.map(({id:_,...p})=>p),
       updatedAt:getFB().serverTimestamp(), updatedBy:getUID(),
     };
+    // Registrar quando foi finalizada (para métrica de tempo médio de atendimento)
+    if(!wasFinished && drwState.status==='finalizado'){
+      updates.finalizadoEm = getFB().serverTimestamp();
+    }
+    // Se saiu de finalizado, limpar o timestamp
+    if(wasFinished && drwState.status!=='finalizado'){
+      updates.finalizadoEm = null;
+    }
     try{
       // Atualizar localmente antes do Firestore
       if(S.ordens[currentDate]){
@@ -2235,12 +2243,12 @@ async function saveDrawer(){
       _recentSaves[drawerOsId] = { status: updates.status, ts: Date.now() };
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
       if(!wasFinished&&updates.status==='finalizado'){
-        await logAudit(o.os,'finalizacao','Finalizado','ok');
-      } else if(updates.status==='pendente'){
-        await logAudit(o.os,'pendente','Voltou para pendente','err');
+        await logAudit(o.os,'finalizacao',`Status: ${_statusLabel(o.status)} → Finalizado`,'ok');
+      } else if(updates.status==='pendente'&&o.status!=='pendente'){
+        await logAudit(o.os,'pendente',`Status: ${_statusLabel(o.status)} → Pendente`,'err');
         try{ await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate); }catch(_){}
       } else if(updates.status==='em_progresso'&&o.status!=='em_progresso'){
-        await logAudit(o.os,'edicao','Em progresso','info');
+        await logAudit(o.os,'edicao',`Status: ${_statusLabel(o.status)} → Em progresso`,'info');
       } else {
         await logAudit(o.os,'edicao','Dados atualizados','gray');
       }
@@ -2544,6 +2552,10 @@ async function logPendente(os, motivo, techId, data){
       uid: getUID()||'',
     });
   }catch(e){ console.warn('logPendente err:',e); }
+}
+
+function _statusLabel(s){
+  return {finalizado:'Finalizado',pendente:'Pendente',em_progresso:'Em progresso',nd:'—'}[s]||s||'—';
 }
 
 async function logAudit(os,acao,desc,cor,dataOS){
@@ -3585,6 +3597,48 @@ function getDashLabel(){
   return 'Todos os dados';
 }
 
+/* ── MÉTRICAS DE GESTÃO — KPIs de tendência ── */
+function calcMetricas(ordens){
+  const fin = ordens.filter(o=>o.status==='finalizado');
+
+  // Tempo médio de conclusão (createdAt → finalizadoEm)
+  let somaMs=0, cont=0;
+  fin.forEach(o=>{
+    const ini = o.createdAt?.seconds ? o.createdAt.seconds*1000 : (o.createdAt?._seconds ? o.createdAt._seconds*1000 : null);
+    const fim = o.finalizadoEm?.seconds ? o.finalizadoEm.seconds*1000 : (o.finalizadoEm?._seconds ? o.finalizadoEm._seconds*1000 : null);
+    if(ini && fim && fim>ini){ somaMs += (fim-ini); cont++; }
+  });
+  let tempoMedioStr = '—';
+  if(cont>0){
+    const horas = somaMs/cont/3600000;
+    if(horas < 24) tempoMedioStr = horas.toFixed(1).replace('.',',')+'h';
+    else tempoMedioStr = (horas/24).toFixed(1).replace('.',',')+'d';
+  }
+
+  // Taxa de retorno: OS que aparecem em mais de uma data (2ª visita)
+  const osPorNumero = {};
+  ordens.forEach(o=>{ osPorNumero[o.os] = (osPorNumero[o.os]||0)+1; });
+  const qtdRetorno = Object.values(osPorNumero).filter(n=>n>1).length;
+  const osUnicas = Object.keys(osPorNumero).length;
+  const taxaRetorno = osUnicas ? Math.round(qtdRetorno/osUnicas*100) : 0;
+
+  // Ticket médio (por OS faturada)
+  const faturadas = fin.filter(o=>parseFloat(o.valor)>0);
+  const somaValor = faturadas.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+  const ticketMedio = faturadas.length ? somaValor/faturadas.length : 0;
+
+  // Taxa FTC
+  const taxaFTC = ordens.length ? Math.round(ordens.filter(o=>o.ftc==='sim').length/ordens.length*100) : 0;
+
+  // OS sem período definido
+  const semPeriodo = ordens.filter(o=>!o.periodo||o.periodo==='nd').length;
+
+  // % com peça
+  const pctComPeca = ordens.length ? Math.round(ordens.filter(o=>o.pecas==='sim').length/ordens.length*100) : 0;
+
+  return { tempoMedioStr, taxaRetorno, qtdRetorno, ticketMedio, taxaFTC, semPeriodo, pctComPeca };
+}
+
 function renderDashboard(){
   const wrap=document.getElementById('dash-content'); if(!wrap)return;
 
@@ -3699,6 +3753,30 @@ function renderDashboard(){
     <div class="dash-card" style="flex:1;min-width:160px">
       <div class="dc-hdr"><span class="dc-title">Prioridade</span></div>
       <canvas id="dch-prio" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- ── MÉTRICAS DE GESTÃO ─────────────────────────────── -->
+  <div class="dash-card" style="margin:0 16px 16px">
+    <div class="dc-hdr"><span class="dc-title">Métricas de gestão</span><span style="font-size:10px;color:var(--tx3)">${label}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+      ${(()=>{
+        const m = calcMetricas(all);
+        const cards = [
+          {l:'Tempo médio de conclusão', v:m.tempoMedioStr, sub:'da criação à finalização', cor:'var(--ow)'},
+          {l:'Taxa de retorno', v:m.taxaRetorno+'%', sub:m.qtdRetorno+' OS com 2ª visita', cor:m.taxaRetorno>20?'var(--err)':'var(--ok)'},
+          {l:'Ticket médio', v:fmtBRL(m.ticketMedio), sub:'por OS faturada', cor:'var(--ok)'},
+          {l:'Taxa de FTC', v:m.taxaFTC+'%', sub:'resolvido no 1º toque', cor:m.taxaFTC>=60?'var(--ok)':'var(--warn)'},
+          {l:'OS sem período', v:m.semPeriodo, sub:'aguardando agendamento', cor:m.semPeriodo>0?'var(--warn)':'var(--tx3)'},
+          {l:'Custo peça / atend.', v:m.pctComPeca+'%', sub:'usaram peça', cor:'var(--ow)'},
+        ];
+        return cards.map(c=>`
+          <div style="background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">${c.l}</div>
+            <div style="font-size:22px;font-weight:700;color:${c.cor};line-height:1">${c.v}</div>
+            <div style="font-size:10.5px;color:var(--tx3);margin-top:4px">${c.sub}</div>
+          </div>`).join('');
+      })()}
     </div>
   </div>
 

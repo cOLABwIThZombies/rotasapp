@@ -112,13 +112,32 @@ app.get('/api/visita', async (req, res) => {
   }
 });
 
-// ── GET /api/status — health check ─────────────────────────────
-app.get('/api/status', (req, res) => {
-  res.json({
-    ok: true,
+// ── GET /api/status — health check completo (para monitoramento) ──────
+const _bootTime = Date.now();
+app.get('/api/status', async (req, res) => {
+  const uptimeSeg = Math.floor((Date.now() - _bootTime) / 1000);
+  const mem = process.memoryUsage();
+
+  // Testa conexão real com o Firestore (não só se inicializou)
+  let firebaseOk = false;
+  if (dbPronto) {
+    try {
+      await admin.firestore().collection('tecnicos').limit(1).get();
+      firebaseOk = true;
+    } catch (e) {
+      firebaseOk = false;
+    }
+  }
+
+  const tudoOk = firebaseOk; // adicione outras checagens críticas aqui
+  res.status(tudoOk ? 200 : 503).json({
+    ok: tudoOk,
     servico: 'GestãoRotas',
-    versao: '2.1.0',
-    firebase: dbPronto,
+    versao: '2.2.0',
+    uptime_segundos: uptimeSeg,
+    uptime_legivel: uptimeSeg > 3600 ? Math.floor(uptimeSeg/3600)+'h' : Math.floor(uptimeSeg/60)+'min',
+    memoria_mb: Math.round(mem.rss / 1024 / 1024),
+    firebase: firebaseOk,
     hora: new Date().toISOString(),
   });
 });
