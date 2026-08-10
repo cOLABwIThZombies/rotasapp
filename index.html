@@ -281,6 +281,7 @@ button,select,input,textarea{font-family:inherit}
 .otag{font-size:8.5px;font-weight:600;padding:1px 4px;border-radius:3px;text-transform:uppercase}
 .otag-m{background:var(--warn-bg);color:var(--warn-tx)}
 .otag-t{background:var(--ok-bg);color:var(--ok-tx)}
+.otag-nd{background:var(--surf2);color:var(--tx3)}
 .osc-val{font-size:9px;color:var(--ok-tx);font-weight:600;white-space:nowrap;margin-top:2px}
 .empty-slot{flex-shrink:0;width:110px;min-height:88px;border:1.5px dashed var(--brd);border-radius:var(--r);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:var(--tx3);font-size:10.5px;cursor:pointer;transition:all .12s}
 .empty-slot:hover,.empty-slot.dov{border-color:var(--ow);color:var(--ow);background:var(--ow-bg)}
@@ -656,6 +657,7 @@ button,select,input,textarea{font-family:inherit}
         <div class="fchip on" id="fc-todos" onclick="setFilter('todos',this)">Todos</div>
         <div class="fchip" id="fc-manha" onclick="setFilter('manha',this)">☀ Manhã</div>
         <div class="fchip" id="fc-tarde" onclick="setFilter('tarde',this)">◑ Tarde</div>
+        <div class="fchip" id="fc-nd" onclick="setFilter('nd',this)">○ Não def.</div>
         <div class="fchip" id="fc-lp" onclick="setFilter('lp',this)">LP</div>
         <div class="fchip" id="fc-ow" onclick="setFilter('ow',this)">OW</div>
         <div class="fchip" id="fc-pend" onclick="setFilter('pend',this)">Pendentes</div>
@@ -847,7 +849,7 @@ button,select,input,textarea{font-family:inherit}
         <div class="dfield"><span class="dlbl">Solução</span><input class="dinp" id="de-solucao"></div>
         <div class="dfield"><span class="dlbl">Bairro</span><input class="dinp" id="de-bairro"></div>
         <div class="dfield"><span class="dlbl">CEP</span><input class="dinp" id="de-cep"></div>
-        <div class="dfield"><span class="dlbl">Período</span><select class="dsel" id="de-periodo"><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
+        <div class="dfield"><span class="dlbl">Período</span><select class="dsel" id="de-periodo"><option value="nd">Não definido</option><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
         <div class="dfield"><span class="dlbl">Técnico</span><select class="dsel" id="de-tec"></select></div>
         <div class="dfield"><span class="dlbl">Tipo de OS</span><select class="dsel" id="de-tipo"></select></div>
       </div>
@@ -924,7 +926,7 @@ button,select,input,textarea{font-family:inherit}
   </div>
 </div>
         <div><label class="lbl">Tipo de OS</label><select class="inp nm" id="m-tipo"></select></div>
-        <div><label class="lbl">Período</label><select class="inp nm" id="m-periodo"><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
+        <div><label class="lbl">Período</label><select class="inp nm" id="m-periodo"><option value="nd">Não definido</option><option value="manha">Manhã</option><option value="tarde">Tarde</option></select></div>
         <div><label class="lbl">Modelo</label><input class="inp nm" id="m-modelo"></div>
         <div><label class="lbl">Serial</label><input class="inp nm" id="m-serial" placeholder="N/S do produto"></div>
         <div><label class="lbl">Defeito</label><input class="inp nm" id="m-defeito"></div>
@@ -1927,6 +1929,7 @@ function visOS(o){
   if(!filtro||filtro==='todos')return true;
   if(filtro==='manha')return o.periodo==='manha';
   if(filtro==='tarde')return o.periodo==='tarde';
+  if(filtro==='nd')return !o.periodo||o.periodo==='nd';
   if(filtro==='lp')return o.prio==='lp';
   if(filtro==='ow')return o.prio==='ow';
   if(filtro==='pend')return o.status==='pendente';
@@ -1944,6 +1947,7 @@ function updateStats(){
     <div class="scard"><div class="sc-l">Total OS</div><div class="sc-v">${all.length}</div><div class="sc-s">${currentDate===TODAY_STR?'hoje':fmtShort(currentDate)}</div></div>
     <div class="scard cp" onclick="setFilter('manha',document.getElementById('fc-manha'))"><div class="sc-l">Manhã</div><div class="sc-v" style="color:var(--warn)">${all.filter(o=>o.periodo==='manha').length}</div></div>
     <div class="scard cp" onclick="setFilter('tarde',document.getElementById('fc-tarde'))"><div class="sc-l">Tarde</div><div class="sc-v" style="color:var(--ok)">${all.filter(o=>o.periodo==='tarde').length}</div></div>
+    <div class="scard cp" onclick="setFilter('nd',document.getElementById('fc-nd'))"><div class="sc-l">Não def.</div><div class="sc-v" style="color:var(--tx3)">${all.filter(o=>!o.periodo||o.periodo==='nd').length}</div></div>
     <div class="scard cp" onclick="setFilter('lp',document.getElementById('fc-lp'))"><div class="sc-l">LP</div><div class="sc-v" style="color:var(--lp)">${all.filter(o=>o.prio==='lp').length}</div></div>
     <div class="scard cp" onclick="setFilter('ow',document.getElementById('fc-ow'))"><div class="sc-l">OW</div><div class="sc-v" style="color:var(--ow)">${all.filter(o=>o.prio==='ow').length}</div></div>
     <div class="scard cp" onclick="setFilter('pend',document.getElementById('fc-pend'))"><div class="sc-l">Pendentes</div><div class="sc-v" style="color:var(--err)">${all.filter(o=>o.status==='pendente').length}</div></div>
@@ -2053,7 +2057,7 @@ function makeCard(o){
     ${o.valor?('<div class="osc-val">'+fmtBRL(o.valor)+'</div>'):''}
     <div class="osc-foot">
       <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.cep||o.bairro||'—'}</div>
-      <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':'otag-t'}">${o.periodo==='manha'?'Mnh':'Trd'}</span></div>
+      <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':o.periodo==='tarde'?'otag-t':'otag-nd'}">${o.periodo==='manha'?'Mnh':o.periodo==='tarde'?'Trd':'N/D'}</span></div>
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
   card.addEventListener('dragend',()=>{card.classList.remove('dragging');draggingId=null;document.querySelectorAll('.empty-slot').forEach(s=>s.classList.remove('dov'))});
@@ -2101,7 +2105,7 @@ function openDrawer(id){
   document.getElementById('drw-grid').innerHTML=[
     {k:'Tipo',v:`<span style="background:${ts.bg};color:${ts.color};font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px">${o.tipo||'—'}</span>`},
     {k:'Prioridade',v:`<span class="pill ${o.prio==='lp'?'pill-err':'pill-info'}">${(o.prio||'—').toUpperCase()}</span>`},
-    {k:'Período',v:o.periodo==='manha'?'☀ Manhã':'◑ Tarde'},
+    {k:'Período',v:o.periodo==='manha'?'☀ Manhã':o.periodo==='tarde'?'◑ Tarde':'○ Não definido'},
     {k:'Técnico',v:t?.nome||'—'},
     {k:'CEP',v:o.cep||'—'},
     {k:'Status',v:o.status==='finalizado'?'<span class="pill pill-ok">Finalizado</span>':o.status==='em_progresso'?'<span class="pill pill-info">Em progresso</span>':'<span class="pill pill-err">Pendente</span>'},
@@ -2120,7 +2124,7 @@ function openDrawer(id){
     semPecaChk.checked = semPeca;
     toggleSemPeca(semPeca);
   }
-  document.getElementById('de-periodo').value=o.periodo||'manha';
+  document.getElementById('de-periodo').value=o.periodo||'nd';
   document.getElementById('de-tec').value=o.techId||'';
   document.getElementById('de-tipo').value=o.tipo||'';
   set('drw-valor',o.valor);
@@ -3273,7 +3277,7 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
           <td>
             <div style="font-family:monospace;font-weight:700;font-size:9.5px">${o.os}</div>
             <div style="background:${ts.bg};color:${ts.color};font-size:7.5px;font-weight:700;padding:1px 3px;margin-top:2px;border-radius:2px;display:inline-block;border:0.5px solid ${ts.color}">${o.tipo||'—'}</div>
-            <div style="font-size:7.5px;color:#555;margin-top:1px">${o.periodo==='manha'?'Manhã':'Tarde'} · ${(o.prio||'').toUpperCase()}-${i+1}</div>
+            <div style="font-size:7.5px;color:#555;margin-top:1px">${o.periodo==='manha'?'Manhã':o.periodo==='tarde'?'Tarde':'—'} · ${(o.prio||'').toUpperCase()}-${i+1}</div>
           </td>
           <td style="font-size:8.5px">${o.modelo||'—'}</td>
           <td style="font-size:8px">${o.nome_cliente||o.endereco?.split('—')[0]?.trim()||'—'}</td>
@@ -3866,7 +3870,7 @@ function openPDFPreview(){
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px;border-left:3px solid #1a1917;padding-left:8px">Detalhamento das OS — ${mesNome}</div>
   <table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:14px">
     <thead><tr>${['OS','Tipo','Modelo','Técnico','Bairro','Período','Status','FTC','Peças','Valor'].map(h=>`<th style="padding:5px 6px;background:#f0efe9;border-bottom:1px solid #e2e0d8;font-size:8px;font-weight:700;text-transform:uppercase;text-align:left">${h}</th>`).join('')}</tr></thead>
-    <tbody>${all.map(o=>{const t=S.tecnicos.find(x=>x.id===o.techId);return`<tr>${[`<span style="font-family:monospace">${o.os}</span>`,o.tipo||'—',o.modelo||'—',t?.nome.split(' ')[0]||'—',o.bairro||'—',o.periodo==='manha'?'Manhã':'Tarde',o.status==='finalizado'?'✓ Final.':'Pend.',o.ftc==='sim'?'Sim':'—',o.pecas==='sim'?'Sim':'—',o.valor?fmtBRL(o.valor):'—'].map(v=>`<td style="padding:4px 6px;border-bottom:.5px solid #f0efe9">${v}</td>`).join('')}</tr>`}).join('')}</tbody>
+    <tbody>${all.map(o=>{const t=S.tecnicos.find(x=>x.id===o.techId);return`<tr>${[`<span style="font-family:monospace">${o.os}</span>`,o.tipo||'—',o.modelo||'—',t?.nome.split(' ')[0]||'—',o.bairro||'—',o.periodo==='manha'?'Manhã':o.periodo==='tarde'?'Tarde':'—',o.status==='finalizado'?'✓ Final.':'Pend.',o.ftc==='sim'?'Sim':'—',o.pecas==='sim'?'Sim':'—',o.valor?fmtBRL(o.valor):'—'].map(v=>`<td style="padding:4px 6px;border-bottom:.5px solid #f0efe9">${v}</td>`).join('')}</tr>`}).join('')}</tbody>
   </table>
   <div style="margin-top:16px;padding-top:10px;border-top:1px solid #e2e0d8;font-size:9px;color:#9e9d96;display:flex;justify-content:space-between"><span>GestãoRotas · CTDI do Brasil</span><span>Gerado em ${hoje}</span></div>`;
   openModal('modal-pdf');
@@ -3960,7 +3964,7 @@ function exportCSV(){
     .sort((a,b)=>a.data.localeCompare(b.data)||(a.posicao-b.posicao));
 
   const STATUS_MAP = {'finalizado':'Finalizado','pendente':'Pendente','em_progresso':'Em progresso'};
-  const PERIODO_MAP = {'manha':'Manhã','tarde':'Tarde'};
+  const PERIODO_MAP = {'manha':'Manhã','tarde':'Tarde','nd':'Não definido'};
   const PRIO_MAP = {'lp':'LP','ow':'OW'};
 
   // Construir linhas
