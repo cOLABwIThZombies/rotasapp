@@ -112,38 +112,29 @@ app.get('/api/visita', async (req, res) => {
   }
 });
 
-// ── GET /api/status — health check completo (para monitoramento) ──────
+// ── GET /api/status — health check leve (não bloqueia no Firestore) ──────
 const _bootTime = Date.now();
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', (req, res) => {
   const uptimeSeg = Math.floor((Date.now() - _bootTime) / 1000);
   const mem = process.memoryUsage();
-
-  // Testa conexão real com o Firestore (não só se inicializou)
-  let firebaseOk = false;
-  if (dbPronto) {
-    try {
-      await admin.firestore().collection('tecnicos').limit(1).get();
-      firebaseOk = true;
-    } catch (e) {
-      firebaseOk = false;
-    }
-  }
-
-  const tudoOk = firebaseOk; // adicione outras checagens críticas aqui
-  res.status(tudoOk ? 200 : 503).json({
-    ok: tudoOk,
+  res.json({
+    ok: true,
     servico: 'GestãoRotas',
-    versao: '2.2.0',
+    versao: '2.2.1',
     uptime_segundos: uptimeSeg,
     uptime_legivel: uptimeSeg > 3600 ? Math.floor(uptimeSeg/3600)+'h' : Math.floor(uptimeSeg/60)+'min',
     memoria_mb: Math.round(mem.rss / 1024 / 1024),
-    firebase: firebaseOk,
+    firebase: dbPronto,
     hora: new Date().toISOString(),
   });
 });
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+    if (err) {
+      res.status(500).send('index.html não encontrado no servidor.');
+    }
+  });
 });
 
 app.listen(PORT, () => {
