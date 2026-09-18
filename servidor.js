@@ -28,7 +28,7 @@ try {
   console.error('✗ Erro ao conectar Firebase:', e.message);
 }
 
-const AGENTE_KEY = process.env.API_AGENTE_KEY || 'chave-de-teste';
+const AGENTE_KEY = process.env.API_AGENTE_KEY || 'rd-rotas-2026-x7k9';
 
 // ── Normaliza telefone: só números ──────────────────────────────
 const soNumeros = s => String(s || '').replace(/\D/g, '');
