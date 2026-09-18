@@ -112,6 +112,59 @@ app.get('/api/visita', async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// GET /api/export — BACKUP COMPLETO do Firestore
+// Baixa todas as coleções num único JSON. Protegido por chave.
+// Uso: /api/export?key=SUA_CHAVE  → salva o arquivo que baixar
+// ══════════════════════════════════════════════════════════════
+app.get('/api/export', async (req, res) => {
+  const chave = req.headers['x-api-key'] || req.query.key;
+  if (chave !== AGENTE_KEY) {
+    return res.status(401).json({ erro: 'Chave de acesso inválida.' });
+  }
+  if (!dbPronto) {
+    return res.status(503).json({ erro: 'Banco de dados não configurado.' });
+  }
+
+  try {
+    const db = admin.firestore();
+    const backup = { exportadoEm: new Date().toISOString(), colecoes: {} };
+
+    // Coleções simples (raiz)
+    const colecoesSimples = ['tecnicos', 'auxiliares', 'tipos_os', 'cargos', 'usuarios', 'auditoria', 'historico_pendentes'];
+    for (const nome of colecoesSimples) {
+      const snap = await db.collection(nome).get();
+      backup.colecoes[nome] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // Subcoleção de ordens: rotas/{data}/ordens — varre todos os dias
+    // Descobre as datas listando a coleção 'rotas'
+    backup.colecoes.ordens = [];
+    backup.colecoes.travas = [];
+    const rotasSnap = await db.collection('rotas').listDocuments();
+    for (const rotaDoc of rotasSnap) {
+      const data = rotaDoc.id; // ex: "2026-08-07"
+      const ordensSnap = await rotaDoc.collection('ordens').get();
+      ordensSnap.forEach(d => {
+        backup.colecoes.ordens.push({ id: d.id, data, ...d.data() });
+      });
+      const travasSnap = await rotaDoc.collection('travas').get();
+      travasSnap.forEach(d => {
+        backup.colecoes.travas.push({ id: d.id, data, ...d.data() });
+      });
+    }
+
+    // Força download do arquivo
+    const nomeArquivo = `firestore-backup-${new Date().toISOString().split('T')[0]}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+    res.send(JSON.stringify(backup, null, 2));
+
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ── GET /api/status — health check leve (não bloqueia no Firestore) ──────
 const _bootTime = Date.now();
 app.get('/api/status', (req, res) => {
