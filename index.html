@@ -75,29 +75,32 @@ function _makeDocSnap(row) {
 function _fromSQL(row) {
   if (!row) return row;
   const r = { ...row };
-  // Mapeamentos snake_case → o que o HTML espera
-  if ('tech_id' in r) { r.techId = r.tech_id; }
-  if ('cargo_id' in r) { r.cargoId = r.cargo_id; }
-  if ('nome_cliente' in r) { r.nome_cliente = r.nome_cliente; }
-  if ('finalizado_em' in r) { r.finalizadoEm = r.finalizado_em; }
-  if ('created_at' in r) { r.createdAt = r.created_at; }
+  // Adiciona aliases camelCase que o HTML espera (mantém snake_case também)
+  const mapa = {
+    tech_id: 'techId', cargo_id: 'cargoId', finalizado_em: 'finalizadoEm',
+    created_at: 'createdAt', created_by: 'createdBy',
+    updated_at: 'updatedAt', updated_by: 'updatedBy',
+  };
+  for (const [snake, camel] of Object.entries(mapa)) {
+    if (snake in r) r[camel] = r[snake];
+  }
   return r;
 }
 
 // ── Converte campos do HTML (camelCase) → colunas SQL (snake_case) ──────────
 function _toSQL(obj) {
   if (!obj) return obj;
-  const r = { ...obj };
-  if ('techId' in r) { r.tech_id = r.techId; delete r.techId; }
-  if ('cargoId' in r) { r.cargo_id = r.cargoId; delete r.cargoId; }
-  if ('finalizadoEm' in r) { r.finalizado_em = r.finalizadoEm; delete r.finalizadoEm; }
-  if ('createdAt' in r) { r.created_at = r.createdAt; delete r.createdAt; }
-  // Remove valores que o Supabase não aceita direto
-  Object.keys(r).forEach(k => {
-    if (r[k] === undefined) delete r[k];
+  const r = {};
+  for (let [k, v] of Object.entries(obj)) {
     // serverTimestamp() vira ISO string
-    if (r[k] && r[k]._serverTimestamp) r[k] = new Date().toISOString();
-  });
+    if (v && v._serverTimestamp) v = new Date().toISOString();
+    // Pula valores undefined
+    if (v === undefined) continue;
+    // Converte camelCase → snake_case automaticamente
+    // techId→tech_id, createdBy→created_by, updatedAt→updated_at, etc.
+    const chave = k.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+    r[chave] = v;
+  }
   return r;
 }
 
@@ -2971,6 +2974,7 @@ function renderCalDia(wrap){
   const os = ordensForDate(currentDate);
   const fin = os.filter(o=>o.status==='finalizado');
   const pend = os.filter(o=>o.status==='pendente');
+  const prog = os.filter(o=>o.status==='em_progresso');
   const fat = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const taxa = os.length?Math.round(fin.length/os.length*100):0;
 
