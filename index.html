@@ -209,6 +209,14 @@ window._doLoginSupabase = async function(email, senha){
   document.getElementById('pg-app').classList.add('on');
   window.bootApp();
 };
+
+// Mostrar a tela de login assim que a página carrega
+window.addEventListener('DOMContentLoaded', () => {
+  const login = document.getElementById('pg-login');
+  if (login) login.style.display = 'flex';
+  const loading = document.getElementById('app-loading');
+  if (loading) loading.classList.remove('on');
+});
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
