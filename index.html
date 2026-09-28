@@ -9,216 +9,71 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script>
-/* ═══════════════════════════════════════════════════════════════════════════
-   ADAPTADOR SUPABASE — emula a API do Firestore, mas fala com o servidor.js
-   Substitui o bloco Firebase original. O resto do HTML não muda.
-═══════════════════════════════════════════════════════════════════════════ */
+<script type="module">
+import { initializeApp }                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut,
+         onAuthStateChanged, sendPasswordResetEmail }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc,
+         getDocs, onSnapshot, updateDoc, deleteDoc,
+         query, orderBy, serverTimestamp, addDoc,
+         writeBatch, Timestamp, collectionGroup }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const API = ''; // mesma origem (o servidor serve o HTML e a API)
-
-async function _api(metodo, rota, corpo) {
-  const opt = { method: metodo, headers: { 'Content-Type': 'application/json' } };
-  if (corpo) opt.body = JSON.stringify(corpo);
-  const r = await fetch(API + rota, opt);
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ erro: 'Erro ' + r.status }));
-    throw new Error(e.erro || ('HTTP ' + r.status));
-  }
-  return r.json();
-}
-
-// Converte um caminho Firestore em {tabela, filtro}
-// 'tecnicos'                    → {tabela:'tecnicos'}
-// 'rotas/2026-08-07/ordens'     → {tabela:'ordens', data:'2026-08-07'}
-// 'rotas/2026-08-07/travas'     → {tabela:'travas', data:'2026-08-07'}
-function _parsePath(pathStr) {
-  const partes = pathStr.split('/');
-  if (partes.length === 1) return { tabela: partes[0] };
-  if (partes[0] === 'rotas' && partes.length === 3) {
-    return { tabela: partes[2], data: partes[1] };
-  }
-  return { tabela: partes[partes.length - 1] };
-}
-
-// ── Objetos que emulam referências do Firestore ──────────────────────────────
-function _collectionRef(pathStr) {
-  return { _tipo: 'collection', _path: pathStr, ..._parsePath(pathStr) };
-}
-function _docRef(pathStr, id) {
-  return { _tipo: 'doc', _path: pathStr, _id: id, ..._parsePath(pathStr) };
-}
-
-// ── Emulação de snapshot (o que getDocs/getDoc retornam) ────────────────────
-function _makeSnap(rows) {
-  const docs = rows.map(row => ({
-    id: row.id,
-    data: () => _fromSQL(row),
-    exists: () => true,
-  }));
-  return {
-    docs,
-    empty: docs.length === 0,
-    size: docs.length,
-    forEach: (fn) => docs.forEach(fn),
-  };
-}
-function _makeDocSnap(row) {
-  return {
-    id: row ? row.id : null,
-    exists: () => !!row,
-    data: () => row ? _fromSQL(row) : undefined,
-  };
-}
-
-// ── Converte nomes de colunas SQL (snake_case) → campos do HTML (camelCase) ──
-function _fromSQL(row) {
-  if (!row) return row;
-  const r = { ...row };
-  // Adiciona aliases camelCase que o HTML espera (mantém snake_case também)
-  const mapa = {
-    tech_id: 'techId', cargo_id: 'cargoId', finalizado_em: 'finalizadoEm',
-    created_at: 'createdAt', created_by: 'createdBy',
-    updated_at: 'updatedAt', updated_by: 'updatedBy',
-  };
-  for (const [snake, camel] of Object.entries(mapa)) {
-    if (snake in r) r[camel] = r[snake];
-  }
-  return r;
-}
-
-// ── Converte campos do HTML (camelCase) → colunas SQL (snake_case) ──────────
-function _toSQL(obj) {
-  if (!obj) return obj;
-  const r = {};
-  for (let [k, v] of Object.entries(obj)) {
-    // serverTimestamp() vira ISO string
-    if (v && v._serverTimestamp) v = new Date().toISOString();
-    // Pula valores undefined
-    if (v === undefined) continue;
-    // Converte camelCase → snake_case automaticamente
-    // techId→tech_id, createdBy→created_by, updatedAt→updated_at, etc.
-    const chave = k.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
-    r[chave] = v;
-  }
-  return r;
-}
-
-// ── Funções que o HTML importa via getFB() ───────────────────────────────────
-const collection = (db, pathStr) => _collectionRef(pathStr);
-const doc = (db, pathStr, id) => {
-  // doc pode ser chamado como doc(db, 'colecao', id) ou doc(db, 'caminho/completo')
-  if (id === undefined) {
-    const partes = pathStr.split('/');
-    const docId = partes.pop();
-    return _docRef(partes.join('/'), docId);
-  }
-  return _docRef(pathStr, id);
+const firebaseConfig = {
+  apiKey: "AIzaSyDWskjClVZ5rRtWRUq-0SGTbRoXwXJIK9E",
+  authDomain: "rotasapp-e2900.firebaseapp.com",
+  projectId: "rotasapp-e2900",
+  storageBucket: "rotasapp-e2900.firebasestorage.app",
+  messagingSenderId: "827128084190",
+  appId: "1:827128084190:web:0ecc42bbba322f2e34344f",
 };
-const query = (ref, ...clausulas) => ({ ...ref, _query: true });
-const orderBy = (campo, dir) => ({ _orderBy: campo, _dir: dir || 'asc' });
-const serverTimestamp = () => ({ _serverTimestamp: true });
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
-async function getDocs(ref) {
-  const p = ref.data ? `?data=${ref.data}` : (ref.tabela === 'ordens' ? '' : '');
-  if (ref.tabela === 'ordens' || ref.tabela === 'travas') {
-    const rows = await _api('GET', `/api/ordens${ref.data ? '?data=' + ref.data : ''}`);
-    // Para travas, usa endpoint genérico filtrando por data no cliente
-    if (ref.tabela === 'travas') {
-      const all = await _api('GET', `/api/travas`);
-      return _makeSnap(all.filter(t => t.data === ref.data));
-    }
-    return _makeSnap(rows);
-  }
-  const rows = await _api('GET', `/api/${ref.tabela}`);
-  return _makeSnap(rows);
-}
-
-async function getDoc(ref) {
-  const rows = await _api('GET', `/api/${ref.tabela}`);
-  const row = rows.find(r => r.id === ref._id);
-  return _makeDocSnap(row);
-}
-
-async function setDoc(ref, dados) {
-  const corpo = { id: ref._id, ..._toSQL(dados) };
-  if (ref.data) corpo.data = ref.data;
-  if (ref.tabela === 'ordens') return _api('POST', '/api/ordens', corpo);
-  return _api('POST', `/api/${ref.tabela}`, corpo);
-}
-
-async function updateDoc(ref, dados) {
-  const corpo = _toSQL(dados);
-  if (ref.tabela === 'ordens') return _api('PUT', `/api/ordens/${ref._id}`, corpo);
-  return _api('PUT', `/api/${ref.tabela}/${ref._id}`, corpo);
-}
-
-async function deleteDoc(ref) {
-  if (ref.tabela === 'ordens') return _api('DELETE', `/api/ordens/${ref._id}`);
-  return _api('DELETE', `/api/${ref.tabela}/${ref._id}`);
-}
-
-async function addDoc(ref, dados) {
-  const id = 'id' + Date.now() + Math.random().toString(36).slice(2, 8);
-  const corpo = { id, ..._toSQL(dados) };
-  if (ref.data) corpo.data = ref.data;
-  if (ref.tabela === 'ordens') await _api('POST', '/api/ordens', corpo);
-  else await _api('POST', `/api/${ref.tabela}`, corpo);
-  return { id };
-}
-
-// onSnapshot vira polling (não há realtime aqui; recarrega ao chamar)
-function onSnapshot(ref, cb, errCb) {
-  getDocs(ref).then(snap => cb(snap)).catch(e => errCb && errCb(e));
-  return () => {}; // unsubscribe no-op
-}
-
-function writeBatch() {
-  const ops = [];
-  return {
-    set: (ref, d) => ops.push(() => setDoc(ref, d)),
-    update: (ref, d) => ops.push(() => updateDoc(ref, d)),
-    delete: (ref) => ops.push(() => deleteDoc(ref)),
-    commit: async () => { for (const op of ops) await op(); },
-  };
-}
-
-console.log('✓ Adaptador Supabase carregado');
-
-
-// ── window._FB agora usa o adaptador (mesma interface do Firestore) ──
-window._FB = {
-  auth: {}, db: {},
+// Exposição global mínima — apenas funções essenciais
+window._FB = { auth, db, signInWithEmailAndPassword, signOut,
+  onAuthStateChanged, sendPasswordResetEmail,
   collection, doc, setDoc, getDoc, getDocs, onSnapshot,
   updateDoc, deleteDoc, query, orderBy, serverTimestamp,
-  addDoc, writeBatch,
-  // Auth agora via servidor
-  signInWithEmailAndPassword: async (_auth, email, senha) => {
-    const r = await _api('POST', '/api/login', { email, senha });
-    window._loginData = r.usuario;
-    return { user: { uid: r.usuario.id, email: r.usuario.email } };
-  },
-  signOut: async () => { window._currentUser = null; location.reload(); },
-  onAuthStateChanged: () => {},
-  sendPasswordResetEmail: async () => { alert('Recuperação de senha: contate o administrador.'); },
-};
+  addDoc, writeBatch, Timestamp, collectionGroup };
 
-// ── Login manual (substitui onAuthStateChanged) ──
-window._doLoginSupabase = async function(email, senha){
-  const r = await _api('POST', '/api/login', { email, senha });
-  const u = r.usuario;
-  window._currentUser = { uid: u.id, id: u.id, nome: u.nome, email: u.email, cargoId: u.cargoId, ativo: true };
-  document.getElementById('pg-login').style.display = 'none';
-  document.getElementById('pg-app').classList.add('on');
-  window.bootApp();
-};
-
-// Mostrar a tela de login assim que a página carrega
-window.addEventListener('DOMContentLoaded', () => {
-  const login = document.getElementById('pg-login');
-  if (login) login.style.display = 'flex';
-  const loading = document.getElementById('app-loading');
-  if (loading) loading.classList.remove('on');
+/* ── BOOT: aguarda autenticação ── */
+onAuthStateChanged(auth, async (fbUser) => {
+  if (fbUser) {
+    try {
+      const snap = await getDoc(doc(db, "usuarios", fbUser.uid));
+      if (!snap.exists()) {
+        // Primeiro acesso: cria perfil mínimo para admin
+        await setDoc(doc(db, "usuarios", fbUser.uid), {
+          nome: fbUser.displayName || fbUser.email.split('@')[0],
+          email: fbUser.email,
+          cargoId: "c1",
+          ativo: true,
+          ultimo: serverTimestamp(),
+        });
+      } else {
+        // Atualiza último acesso sem bloquear UI
+        updateDoc(doc(db, "usuarios", fbUser.uid), { ultimo: serverTimestamp() });
+      }
+      const userData = snap.exists() ? snap.data() : { nome: fbUser.email, cargoId: "c1", ativo: true };
+      window._currentUser = { uid: fbUser.uid, ...userData };
+      document.getElementById('pg-login').style.display = 'none';
+      document.getElementById('pg-app').classList.add('on');
+      window.bootApp();
+    } catch(e) {
+      const errEl=document.getElementById('login-err');
+      if(errEl){errEl.textContent='Erro ao carregar perfil: '+e.message;errEl.style.display='block';}
+      document.getElementById('pg-login').style.display='flex';
+      document.getElementById('app-loading').classList.remove('on');
+      signOut(auth);
+    }
+  } else {
+    document.getElementById('pg-login').style.display = 'flex';
+    document.getElementById('pg-app').classList.remove('on');
+    document.getElementById('app-loading').classList.remove('on');
+    const btn=document.getElementById('btn-login');
+    if(btn){btn.disabled=false;btn.innerHTML='Entrar';}
+  }
 });
 </script>
 <style>
@@ -1406,10 +1261,11 @@ async function doLogin(){
   if(!email||!pw){setLoginErr('Preencha e-mail e senha.');return;}
   setLoginBtn(true); setLoginErr('');
   try{
-    await window._doLoginSupabase(email, pw);
+    await getFB().signInWithEmailAndPassword(getFB().auth, email, pw);
   }catch(e){
     setLoginBtn(false);
-    setLoginErr('Erro: '+e.message);
+    const msgs={'auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/invalid-email':'E-mail inválido.','auth/too-many-requests':'Muitas tentativas. Aguarde.','auth/invalid-credential':'Credenciais inválidas.'};
+    setLoginErr(msgs[e.code]||'Erro: '+e.message);
   }
 }
 window.doLogin = doLogin;
@@ -2974,7 +2830,6 @@ function renderCalDia(wrap){
   const os = ordensForDate(currentDate);
   const fin = os.filter(o=>o.status==='finalizado');
   const pend = os.filter(o=>o.status==='pendente');
-  const prog = os.filter(o=>o.status==='em_progresso');
   const fat = fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const taxa = os.length?Math.round(fin.length/os.length*100):0;
 
