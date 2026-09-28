@@ -9,72 +9,206 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script type="module">
-import { initializeApp }                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut,
-         onAuthStateChanged, sendPasswordResetEmail }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc,
-         getDocs, onSnapshot, updateDoc, deleteDoc,
-         query, orderBy, serverTimestamp, addDoc,
-         writeBatch, Timestamp, collectionGroup }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADAPTADOR SUPABASE — emula a API do Firestore, mas fala com o servidor.js
+   Substitui o bloco Firebase original. O resto do HTML não muda.
+═══════════════════════════════════════════════════════════════════════════ */
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDWskjClVZ5rRtWRUq-0SGTbRoXwXJIK9E",
-  authDomain: "rotasapp-e2900.firebaseapp.com",
-  projectId: "rotasapp-e2900",
-  storageBucket: "rotasapp-e2900.firebasestorage.app",
-  messagingSenderId: "827128084190",
-  appId: "1:827128084190:web:0ecc42bbba322f2e34344f",
+const API = ''; // mesma origem (o servidor serve o HTML e a API)
+
+async function _api(metodo, rota, corpo) {
+  const opt = { method: metodo, headers: { 'Content-Type': 'application/json' } };
+  if (corpo) opt.body = JSON.stringify(corpo);
+  const r = await fetch(API + rota, opt);
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({ erro: 'Erro ' + r.status }));
+    throw new Error(e.erro || ('HTTP ' + r.status));
+  }
+  return r.json();
+}
+
+// Converte um caminho Firestore em {tabela, filtro}
+// 'tecnicos'                    → {tabela:'tecnicos'}
+// 'rotas/2026-08-07/ordens'     → {tabela:'ordens', data:'2026-08-07'}
+// 'rotas/2026-08-07/travas'     → {tabela:'travas', data:'2026-08-07'}
+function _parsePath(pathStr) {
+  const partes = pathStr.split('/');
+  if (partes.length === 1) return { tabela: partes[0] };
+  if (partes[0] === 'rotas' && partes.length === 3) {
+    return { tabela: partes[2], data: partes[1] };
+  }
+  return { tabela: partes[partes.length - 1] };
+}
+
+// ── Objetos que emulam referências do Firestore ──────────────────────────────
+function _collectionRef(pathStr) {
+  return { _tipo: 'collection', _path: pathStr, ..._parsePath(pathStr) };
+}
+function _docRef(pathStr, id) {
+  return { _tipo: 'doc', _path: pathStr, _id: id, ..._parsePath(pathStr) };
+}
+
+// ── Emulação de snapshot (o que getDocs/getDoc retornam) ────────────────────
+function _makeSnap(rows) {
+  const docs = rows.map(row => ({
+    id: row.id,
+    data: () => _fromSQL(row),
+    exists: () => true,
+  }));
+  return {
+    docs,
+    empty: docs.length === 0,
+    size: docs.length,
+    forEach: (fn) => docs.forEach(fn),
+  };
+}
+function _makeDocSnap(row) {
+  return {
+    id: row ? row.id : null,
+    exists: () => !!row,
+    data: () => row ? _fromSQL(row) : undefined,
+  };
+}
+
+// ── Converte nomes de colunas SQL (snake_case) → campos do HTML (camelCase) ──
+function _fromSQL(row) {
+  if (!row) return row;
+  const r = { ...row };
+  // Mapeamentos snake_case → o que o HTML espera
+  if ('tech_id' in r) { r.techId = r.tech_id; }
+  if ('cargo_id' in r) { r.cargoId = r.cargo_id; }
+  if ('nome_cliente' in r) { r.nome_cliente = r.nome_cliente; }
+  if ('finalizado_em' in r) { r.finalizadoEm = r.finalizado_em; }
+  if ('created_at' in r) { r.createdAt = r.created_at; }
+  return r;
+}
+
+// ── Converte campos do HTML (camelCase) → colunas SQL (snake_case) ──────────
+function _toSQL(obj) {
+  if (!obj) return obj;
+  const r = { ...obj };
+  if ('techId' in r) { r.tech_id = r.techId; delete r.techId; }
+  if ('cargoId' in r) { r.cargo_id = r.cargoId; delete r.cargoId; }
+  if ('finalizadoEm' in r) { r.finalizado_em = r.finalizadoEm; delete r.finalizadoEm; }
+  if ('createdAt' in r) { r.created_at = r.createdAt; delete r.createdAt; }
+  // Remove valores que o Supabase não aceita direto
+  Object.keys(r).forEach(k => {
+    if (r[k] === undefined) delete r[k];
+    // serverTimestamp() vira ISO string
+    if (r[k] && r[k]._serverTimestamp) r[k] = new Date().toISOString();
+  });
+  return r;
+}
+
+// ── Funções que o HTML importa via getFB() ───────────────────────────────────
+const collection = (db, pathStr) => _collectionRef(pathStr);
+const doc = (db, pathStr, id) => {
+  // doc pode ser chamado como doc(db, 'colecao', id) ou doc(db, 'caminho/completo')
+  if (id === undefined) {
+    const partes = pathStr.split('/');
+    const docId = partes.pop();
+    return _docRef(partes.join('/'), docId);
+  }
+  return _docRef(pathStr, id);
 };
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
+const query = (ref, ...clausulas) => ({ ...ref, _query: true });
+const orderBy = (campo, dir) => ({ _orderBy: campo, _dir: dir || 'asc' });
+const serverTimestamp = () => ({ _serverTimestamp: true });
 
-// Exposição global mínima — apenas funções essenciais
-window._FB = { auth, db, signInWithEmailAndPassword, signOut,
-  onAuthStateChanged, sendPasswordResetEmail,
+async function getDocs(ref) {
+  const p = ref.data ? `?data=${ref.data}` : (ref.tabela === 'ordens' ? '' : '');
+  if (ref.tabela === 'ordens' || ref.tabela === 'travas') {
+    const rows = await _api('GET', `/api/ordens${ref.data ? '?data=' + ref.data : ''}`);
+    // Para travas, usa endpoint genérico filtrando por data no cliente
+    if (ref.tabela === 'travas') {
+      const all = await _api('GET', `/api/travas`);
+      return _makeSnap(all.filter(t => t.data === ref.data));
+    }
+    return _makeSnap(rows);
+  }
+  const rows = await _api('GET', `/api/${ref.tabela}`);
+  return _makeSnap(rows);
+}
+
+async function getDoc(ref) {
+  const rows = await _api('GET', `/api/${ref.tabela}`);
+  const row = rows.find(r => r.id === ref._id);
+  return _makeDocSnap(row);
+}
+
+async function setDoc(ref, dados) {
+  const corpo = { id: ref._id, ..._toSQL(dados) };
+  if (ref.data) corpo.data = ref.data;
+  if (ref.tabela === 'ordens') return _api('POST', '/api/ordens', corpo);
+  return _api('POST', `/api/${ref.tabela}`, corpo);
+}
+
+async function updateDoc(ref, dados) {
+  const corpo = _toSQL(dados);
+  if (ref.tabela === 'ordens') return _api('PUT', `/api/ordens/${ref._id}`, corpo);
+  return _api('PUT', `/api/${ref.tabela}/${ref._id}`, corpo);
+}
+
+async function deleteDoc(ref) {
+  if (ref.tabela === 'ordens') return _api('DELETE', `/api/ordens/${ref._id}`);
+  return _api('DELETE', `/api/${ref.tabela}/${ref._id}`);
+}
+
+async function addDoc(ref, dados) {
+  const id = 'id' + Date.now() + Math.random().toString(36).slice(2, 8);
+  const corpo = { id, ..._toSQL(dados) };
+  if (ref.data) corpo.data = ref.data;
+  if (ref.tabela === 'ordens') await _api('POST', '/api/ordens', corpo);
+  else await _api('POST', `/api/${ref.tabela}`, corpo);
+  return { id };
+}
+
+// onSnapshot vira polling (não há realtime aqui; recarrega ao chamar)
+function onSnapshot(ref, cb, errCb) {
+  getDocs(ref).then(snap => cb(snap)).catch(e => errCb && errCb(e));
+  return () => {}; // unsubscribe no-op
+}
+
+function writeBatch() {
+  const ops = [];
+  return {
+    set: (ref, d) => ops.push(() => setDoc(ref, d)),
+    update: (ref, d) => ops.push(() => updateDoc(ref, d)),
+    delete: (ref) => ops.push(() => deleteDoc(ref)),
+    commit: async () => { for (const op of ops) await op(); },
+  };
+}
+
+console.log('✓ Adaptador Supabase carregado');
+
+
+// ── window._FB agora usa o adaptador (mesma interface do Firestore) ──
+window._FB = {
+  auth: {}, db: {},
   collection, doc, setDoc, getDoc, getDocs, onSnapshot,
   updateDoc, deleteDoc, query, orderBy, serverTimestamp,
-  addDoc, writeBatch, Timestamp, collectionGroup };
+  addDoc, writeBatch,
+  // Auth agora via servidor
+  signInWithEmailAndPassword: async (_auth, email, senha) => {
+    const r = await _api('POST', '/api/login', { email, senha });
+    window._loginData = r.usuario;
+    return { user: { uid: r.usuario.id, email: r.usuario.email } };
+  },
+  signOut: async () => { window._currentUser = null; location.reload(); },
+  onAuthStateChanged: () => {},
+  sendPasswordResetEmail: async () => { alert('Recuperação de senha: contate o administrador.'); },
+};
 
-/* ── BOOT: aguarda autenticação ── */
-onAuthStateChanged(auth, async (fbUser) => {
-  if (fbUser) {
-    try {
-      const snap = await getDoc(doc(db, "usuarios", fbUser.uid));
-      if (!snap.exists()) {
-        // Primeiro acesso: cria perfil mínimo para admin
-        await setDoc(doc(db, "usuarios", fbUser.uid), {
-          nome: fbUser.displayName || fbUser.email.split('@')[0],
-          email: fbUser.email,
-          cargoId: "c1",
-          ativo: true,
-          ultimo: serverTimestamp(),
-        });
-      } else {
-        // Atualiza último acesso sem bloquear UI
-        updateDoc(doc(db, "usuarios", fbUser.uid), { ultimo: serverTimestamp() });
-      }
-      const userData = snap.exists() ? snap.data() : { nome: fbUser.email, cargoId: "c1", ativo: true };
-      window._currentUser = { uid: fbUser.uid, ...userData };
-      document.getElementById('pg-login').style.display = 'none';
-      document.getElementById('pg-app').classList.add('on');
-      window.bootApp();
-    } catch(e) {
-      const errEl=document.getElementById('login-err');
-      if(errEl){errEl.textContent='Erro ao carregar perfil: '+e.message;errEl.style.display='block';}
-      document.getElementById('pg-login').style.display='flex';
-      document.getElementById('app-loading').classList.remove('on');
-      signOut(auth);
-    }
-  } else {
-    document.getElementById('pg-login').style.display = 'flex';
-    document.getElementById('pg-app').classList.remove('on');
-    document.getElementById('app-loading').classList.remove('on');
-    const btn=document.getElementById('btn-login');
-    if(btn){btn.disabled=false;btn.innerHTML='Entrar';}
-  }
-});
+// ── Login manual (substitui onAuthStateChanged) ──
+window._doLoginSupabase = async function(email, senha){
+  const r = await _api('POST', '/api/login', { email, senha });
+  const u = r.usuario;
+  window._currentUser = { uid: u.id, id: u.id, nome: u.nome, email: u.email, cargoId: u.cargoId, ativo: true };
+  document.getElementById('pg-login').style.display = 'none';
+  document.getElementById('pg-app').classList.add('on');
+  window.bootApp();
+};
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
@@ -1261,11 +1395,10 @@ async function doLogin(){
   if(!email||!pw){setLoginErr('Preencha e-mail e senha.');return;}
   setLoginBtn(true); setLoginErr('');
   try{
-    await getFB().signInWithEmailAndPassword(getFB().auth, email, pw);
+    await window._doLoginSupabase(email, pw);
   }catch(e){
     setLoginBtn(false);
-    const msgs={'auth/user-not-found':'Usuário não encontrado.','auth/wrong-password':'Senha incorreta.','auth/invalid-email':'E-mail inválido.','auth/too-many-requests':'Muitas tentativas. Aguarde.','auth/invalid-credential':'Credenciais inválidas.'};
-    setLoginErr(msgs[e.code]||'Erro: '+e.message);
+    setLoginErr('Erro: '+e.message);
   }
 }
 window.doLogin = doLogin;
@@ -2242,15 +2375,17 @@ async function saveDrawer(){
       }
       _recentSaves[drawerOsId] = { status: updates.status, ts: Date.now() };
       await getFB().updateDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId),updates);
+      // Capturar todas as mudanças de campo (audit trail detalhado)
+      const mudancas = _diffOS(o, {...o, ...updates});
       if(!wasFinished&&updates.status==='finalizado'){
-        await logAudit(o.os,'finalizacao',`Status: ${_statusLabel(o.status)} → Finalizado`,'ok');
+        await logAudit(o.os,'finalizacao',`Status: ${_statusLabel(o.status)} → Finalizado`,'ok',currentDate,mudancas);
       } else if(updates.status==='pendente'&&o.status!=='pendente'){
-        await logAudit(o.os,'pendente',`Status: ${_statusLabel(o.status)} → Pendente`,'err');
+        await logAudit(o.os,'pendente',`Status: ${_statusLabel(o.status)} → Pendente`,'err',currentDate,mudancas);
         try{ await logPendente(o.os,'retorno',updates.techId||o.techId,currentDate); }catch(_){}
       } else if(updates.status==='em_progresso'&&o.status!=='em_progresso'){
-        await logAudit(o.os,'edicao',`Status: ${_statusLabel(o.status)} → Em progresso`,'info');
-      } else {
-        await logAudit(o.os,'edicao','Dados atualizados','gray');
+        await logAudit(o.os,'edicao',`Status: ${_statusLabel(o.status)} → Em progresso`,'info',currentDate,mudancas);
+      } else if(mudancas.length){
+        await logAudit(o.os,'edicao',`${mudancas.length} campo(s) alterado(s)`,'gray',currentDate,mudancas);
       }
       closeDrawer(); toast('OS salva com sucesso','ok');
       // Atualizar board imediatamente após save (não esperar o próximo ciclo de 30s)
@@ -2558,17 +2693,47 @@ function _statusLabel(s){
   return {finalizado:'Finalizado',pendente:'Pendente',em_progresso:'Em progresso',nd:'—'}[s]||s||'—';
 }
 
-async function logAudit(os,acao,desc,cor,dataOS){
+async function logAudit(os,acao,desc,cor,dataOS,mudancas){
   try{
-    await getFB().addDoc(getFB().collection(getDB(),'auditoria'),{
+    const registro = {
       os:String(os||''), acao, desc, cor,
       data: dataOS || currentDate || TODAY_STR,
       user:window._currentUser?.nome||'Sistema',
       uid:getUID()||'',
       hora:nowTime(),
       ts:getFB().serverTimestamp(),
-    });
+    };
+    // Registro estruturado de mudanças: [{campo, de, para}]
+    if(mudancas && mudancas.length){ registro.mudancas = mudancas; }
+    await getFB().addDoc(getFB().collection(getDB(),'auditoria'), registro);
   }catch(e){console.warn('Audit err:',e);}
+}
+
+// Compara dois objetos de OS e retorna a lista de campos que mudaram
+function _diffOS(antes, depois){
+  const CAMPOS = {
+    status:'Status', techId:'Técnico', periodo:'Período', tipo:'Tipo',
+    modelo:'Modelo', defeito:'Defeito', solucao:'Solução', valor:'Valor',
+    ftc:'FTC', pecas:'Peças', faturado:'Faturado', nome_cliente:'Cliente',
+    tel:'Telefone', endereco:'Endereço', bairro:'Bairro', cep:'CEP', prio:'Prioridade'
+  };
+  const LABELS = {
+    status:v=>_statusLabel(v),
+    periodo:v=>({manha:'Manhã',tarde:'Tarde',nd:'Não definido'}[v]||v||'—'),
+    techId:v=>{const t=S.tecnicos.find(x=>x.id===v);return t?t.nome:(v||'—');},
+    ftc:v=>v==='sim'?'Sim':'Não', pecas:v=>v==='sim'?'Sim':'Não', faturado:v=>v==='sim'?'Sim':'Não',
+    prio:v=>(v||'').toUpperCase()||'—',
+  };
+  const mudancas = [];
+  for(const [campo,label] of Object.entries(CAMPOS)){
+    const va = antes?.[campo] ?? '';
+    const vb = depois?.[campo] ?? '';
+    if(String(va) !== String(vb)){
+      const fmt = LABELS[campo] || (x=>x||'—');
+      mudancas.push({ campo: label, de: String(fmt(va)), para: String(fmt(vb)) });
+    }
+  }
+  return mudancas;
 }
 function renderAuditoria(){
   const wrap=document.getElementById('audit-wrap'); if(!wrap)return;
@@ -2621,13 +2786,28 @@ function renderAuditoria(){
   filtered.forEach(a=>{
     const[bg,cl]=AC[a.cor||'gray']||AC.gray;
     const el=document.createElement('div'); el.className='audit-item';
+    el.style.flexDirection='column'; el.style.alignItems='stretch';
     const dataStr = a.data ? `<span style="font-family:'DM Mono',monospace;font-size:10.5px;color:var(--tx3);background:var(--surf2);padding:1px 6px;border-radius:3px">${fmtShort(a.data)}</span>` : '';
+    // Detalhamento das mudanças (de → para)
+    const mudancasHtml = (a.mudancas && a.mudancas.length) ? `
+      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;flex-direction:column;gap:3px">
+        ${a.mudancas.map(m=>`
+          <div style="font-size:11px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:var(--tx3);min-width:70px">${m.campo}:</span>
+            <span style="color:var(--err-tx);background:var(--err-bg);padding:0 5px;border-radius:3px;text-decoration:line-through;opacity:.75">${m.de||'—'}</span>
+            <span style="color:var(--tx3)">→</span>
+            <span style="color:var(--ok-tx);background:var(--ok-bg);padding:0 5px;border-radius:3px;font-weight:600">${m.para||'—'}</span>
+          </div>`).join('')}
+      </div>` : '';
     el.innerHTML=`
-      <span class="audit-tag" style="background:${bg};color:${cl}">${AL[a.acao]||a.acao}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;flex-shrink:0">#${a.os}</span>
-      ${dataStr}
-      <span class="audit-txt">${a.desc||''} <span style="color:var(--tx3);font-size:11px">· ${a.user}</span></span>
-      <span class="audit-meta">${a.hora||'—'}</span>`;
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="audit-tag" style="background:${bg};color:${cl}">${AL[a.acao]||a.acao}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;flex-shrink:0">#${a.os}</span>
+        ${dataStr}
+        <span class="audit-txt" style="flex:1">${a.desc||''} <span style="color:var(--tx3);font-size:11px">· ${a.user}</span></span>
+        <span class="audit-meta">${a.hora||'—'}</span>
+      </div>
+      ${mudancasHtml}`;
     wrap.appendChild(el);
   });
   if(!filtered.length) wrap.innerHTML='<div style="text-align:center;padding:40px;color:var(--tx3);font-size:13px">Nenhum registro encontrado.</div>';
