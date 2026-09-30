@@ -11,6 +11,15 @@ Supabase → **SQL Editor** → cole todo o arquivo
 `supabase/migrations/20260929000000_documentos.sql` → **Run**.
 (Pode rodar mais de uma vez. Não mexe nas tabelas antigas `ordens`, `tecnicos`… da tentativa anterior.)
 
+### 1b. Trazer os dados das tabelas antigas (`ordens`, `tecnicos`, `usuarios`…)
+Se os dados estão nas tabelas da versão anterior do app (e não no Firestore):
+SQL Editor → cole todo o arquivo
+`supabase/migrations/20260930000000_importar_tabelas_antigas.sql` → **Run**.
+Ele copia cada linha para `documentos` no formato do app (datas de `ordens`/`travas`
+viram `rotas/<data>/ordens`, `tech_id` → `techId` etc.), mostra no fim quantos
+documentos há em cada coleção e **não sobrescreve** nada que já foi lançado no app novo.
+As tabelas antigas continuam intactas. Nesse caso, pule o passo 4.
+
 ### 2. Configurar o Auth do Supabase
 Authentication → **URL Configuration**:
 - *Site URL*: o endereço do app no Render (ex.: `https://seuapp.onrender.com`)
@@ -43,6 +52,16 @@ node migrar-firestore-para-supabase.mjs             # copia de verdade
 ```
 Se a cota gratuita do Firestore (50 mil leituras/dia) for problema, use
 `--desde=2026-01-01` para copiar só as rotas a partir de uma data.
+
+**Só o que mudou desde uma data** (ex.: dados já vieram das tabelas antigas até 20/09):
+```bash
+node migrar-firestore-para-supabase.mjs --desde=2026-09-20 --espelhar --simular   # confere antes
+node migrar-firestore-para-supabase.mjs --desde=2026-09-20 --espelhar
+```
+Copia as rotas a partir da data (inclusive as futuras), a auditoria e o histórico de
+pendentes desse período e os cadastros (técnicos, usuários…). O Firestore vale sobre o
+Supabase. `--espelhar` apaga do Supabase as OS/travas desse período que não existem
+mais no Firestore (apagadas ou movidas de dia).
 
 > ⚠️ **Não rode a migração de novo depois que o app já estiver no Supabase**: ela
 > sobrescreveria alterações novas com os dados antigos do Firestore.
