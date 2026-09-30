@@ -17,9 +17,11 @@ app.use(express.json({ limit: '1mb' }));
 //   FIREBASE_API_KEY      → apiKey do projeto Firebase antigo
 //   MIGRAR_LOGIN_FIREBASE → "0" desliga
 // ══════════════════════════════════════════════════════════════
-const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY;
-const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
+// Aceita também os nomes alternativos mais comuns (e ignora espaços colados por engano)
+const env = (...nomes) => { for (const n of nomes) { const v = (process.env[n] || '').trim(); if (v) return v; } return ''; };
+const SUPABASE_URL  = env('SUPABASE_URL', 'SUPABASE_PROJECT_URL', 'NEXT_PUBLIC_SUPABASE_URL').replace(/\/+$/, '');
+const SUPABASE_ANON = env('SUPABASE_ANON_KEY', 'SUPABASE_ANON', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const SUPABASE_KEY  = env('SUPABASE_SERVICE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY');
 const AGENTE_KEY    = process.env.API_AGENTE_KEY || 'chave-de-teste';
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyDWskjClVZ5rRtWRUq-0SGTbRoXwXJIK9E';
 const FIREBASE_AUTH_URL = process.env.FIREBASE_AUTH_URL || 'https://identitytoolkit.googleapis.com';
@@ -318,6 +320,14 @@ app.get('/api/status', (req, res) => {
   res.json({
     ok: true, servico: 'GestãoRotas', versao: '3.0.0-supabase',
     supabase: !!sb,
+    // Diagnóstico de configuração (só diz se existe, nunca o valor)
+    config: {
+      SUPABASE_URL: !!SUPABASE_URL,
+      SUPABASE_ANON_KEY: !!SUPABASE_ANON,
+      SUPABASE_SERVICE_KEY: !!SUPABASE_KEY,
+      GEMINI_API_KEY: !!GEMINI_API_KEY,
+      COBLI_API_KEY: !!COBLI_API_KEY,
+    },
     uptime_segundos: uptimeSeg,
     uptime_legivel: uptimeSeg > 3600 ? Math.floor(uptimeSeg / 3600) + 'h' : Math.floor(uptimeSeg / 60) + 'min',
     memoria_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),

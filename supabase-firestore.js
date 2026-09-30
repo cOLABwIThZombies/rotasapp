@@ -235,7 +235,8 @@ export function initializeApp(config) {
   const criar = config.createClient || globalThis.supabase?.createClient;
   if (!criar) throw new Error('supabase-js não carregado (inclua /vendor/supabase.js antes)');
   if (!config.url || !config.anonKey) {
-    throw new Error('Supabase não configurado: defina SUPABASE_URL e SUPABASE_ANON_KEY no servidor');
+    const faltando = [!config.url && 'SUPABASE_URL', !config.anonKey && 'SUPABASE_ANON_KEY'].filter(Boolean).join(' e ');
+    throw new Error(`Supabase não configurado: falta ${faltando} nas variáveis de ambiente do servidor (Render → Environment)`);
   }
   const client = criar(config.url, config.anonKey, {
     auth: {
