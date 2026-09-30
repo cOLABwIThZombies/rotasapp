@@ -40,6 +40,10 @@ function traduzirErro(error) {
   const msg = error?.message || String(error);
   const code = error?.code;
   if (code === 'P0002') return new FirestoreError('not-found', msg);
+  if (code === 'PGRST205' || code === 'PGRST202' || code === '42P01' || code === '42883') {
+    return new FirestoreError('failed-precondition',
+      'Banco não preparado: rode o arquivo supabase/migrations/20260929000000_documentos.sql no SQL Editor do Supabase.');
+  }
   if (code === '42501' || /permission denied|row-level security/i.test(msg)) {
     return new FirestoreError('permission-denied', 'Missing or insufficient permissions.');
   }
