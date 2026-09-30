@@ -1,0 +1,13 @@
+{
+  "name": "rotas-migracao",
+  "private": true,
+  "type": "module",
+  "description": "Migração única dos dados do Firestore para o Supabase",
+  "scripts": {
+    "migrar": "node migrar-firestore-para-supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "firebase-admin": "^12.0.0"
+  }
+}

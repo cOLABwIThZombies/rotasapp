@@ -9,19 +9,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="/vendor/supabase.js"></script>
-<script src="/config.js"></script>
 <script type="module">
-// Banco: Supabase. A camada supabase-firestore.js oferece a mesma API do Firebase,
-// então o restante do app continua igual à versão Firestore.
-import { initializeApp, getAuth, signInWithEmailAndPassword, signOut,
-         onAuthStateChanged, sendPasswordResetEmail,
-         getFirestore, collection, doc, setDoc, getDoc,
+import { initializeApp }                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut,
+         onAuthStateChanged, sendPasswordResetEmail }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc,
          getDocs, onSnapshot, updateDoc, deleteDoc,
          query, orderBy, serverTimestamp, addDoc,
-         writeBatch, Timestamp, collectionGroup }           from "/supabase-firestore.js?v=3.0.0";
+         writeBatch, Timestamp, collectionGroup }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const app  = initializeApp(window.SUPABASE_CONFIG || {});
+const firebaseConfig = {
+  apiKey: "AIzaSyDWskjClVZ5rRtWRUq-0SGTbRoXwXJIK9E",
+  authDomain: "rotasapp-e2900.firebaseapp.com",
+  projectId: "rotasapp-e2900",
+  storageBucket: "rotasapp-e2900.firebasestorage.app",
+  messagingSenderId: "827128084190",
+  appId: "1:827128084190:web:0ecc42bbba322f2e34344f",
+};
+const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
@@ -812,7 +817,7 @@ button,select,input,textarea{font-family:inherit}
     <!-- TIPOS OS -->
     <div id="screen-tipos" class="screen">
       <div class="hdr"><span class="htitle">Tipos de OS</span><div class="hsp"></div>
-        <button class="btn-ghost" onclick="restaurarTiposPadrao()" style="font-size:12px;padding:5px 11px;color:var(--err);border-color:var(--err)" title="Recriar os 14 tipos originais no banco">↺ Restaurar tipos padrão</button>
+        <button class="btn-ghost" onclick="restaurarTiposPadrao()" style="font-size:12px;padding:5px 11px;color:var(--err);border-color:var(--err)" title="Recriar os 14 tipos originais no Firestore">↺ Restaurar tipos padrão</button>
         <button class="btn-new" onclick="openTipoForm()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Novo tipo</button>
       </div>
       <div class="crud-wrap"><div class="crud-table"><table style="width:100%;border-collapse:collapse"><thead><tr class="cthead"><th>Tipo</th><th>Aparência</th><th style="text-align:right">Ações</th></tr></thead><tbody class="ctbody" id="tipo-body"></tbody></table></div></div>
@@ -1432,11 +1437,6 @@ function stopOrdens(){
 // Cole sua API key do Google AI Studio aqui (aistudio.google.com/apikey)
 // A chave da API fica protegida no Cloudflare Worker — nunca aparece aqui
 const GEMINI_PROXY_URL = '/api/ia'; // Proxy via servidor.js — chave protegida no Render
-// Token do usuário logado — o servidor só atende /api/ia e /api/cobli para quem está logado
-async function _authHeader(){
-  try{ const t = await getFB().auth.currentUser?.getIdToken(); return t ? {Authorization:'Bearer '+t} : {}; }
-  catch(e){ return {}; }
-}
 
 async function analisarComIA(prefix){
   const modeloEl   = document.getElementById(prefix==='m'?'m-modelo':'de-modelo');
@@ -1480,7 +1480,7 @@ Regras importantes:
   try{
     const resp = await fetch(GEMINI_PROXY_URL, {
       method: 'POST',
-      headers: {'Content-Type':'application/json', ...(await _authHeader())},
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ prompt, maxTokens: 300 })
     });
     if(!resp.ok){
@@ -1555,7 +1555,7 @@ Regras:
   try{
     const resp = await fetch(GEMINI_PROXY_URL, {
       method: 'POST',
-      headers: {'Content-Type':'application/json', ...(await _authHeader())},
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ prompt, maxTokens: 4000, json: true })
     });
     if(!resp.ok){
@@ -1667,7 +1667,7 @@ async function _mapaFetch(){
   try{
     const resp = await fetch(COBLI_PROXY_URL, {
       method: 'POST',
-      headers: {'Content-Type':'application/json', ...(await _authHeader())},
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ endpoint: '/herbie-1.1/devices' })
     });
     if(!resp.ok) throw new Error(`Cobli: HTTP ${resp.status}`);
@@ -2271,7 +2271,7 @@ async function deleteOS(){
   }
   confirm2(
     `Remover OS #${o.os} permanentemente?`,
-    `<span style="color:#b91c1c;font-weight:600">⚠ Esta ação é irreversível.</span><br>A OS será excluída do banco de dados e não poderá ser recuperada.`,
+    `<span style="color:#b91c1c;font-weight:600">⚠ Esta ação é irreversível.</span><br>A OS será excluída do Firestore e não poderá ser recuperada.`,
     async()=>{
       try{
         await getFB().deleteDoc(getFB().doc(getDB(),`rotas/${currentDate}/ordens`,drawerOsId));
@@ -4408,7 +4408,7 @@ function openUserForm(id){
     const cargoOpts=S.cargos.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
     document.getElementById('mf-body').innerHTML=`
       <div style="background:var(--warn-bg);border:1px solid #f5d98a;border-radius:6px;padding:8px 12px;font-size:12px;color:var(--warn-tx);margin-bottom:10px">
-        O perfil será salvo no banco. Para criar o acesso de login, vá ao Supabase → Authentication → Users → Add user → Create new user (marque "Auto Confirm User") com o e-mail e senha abaixo.
+        O usuário será salvo no Firestore. Para criar o acesso de login, vá ao Firebase Console → Authentication → Add user com o e-mail e senha abaixo.
       </div>
       <div><label class="lbl">Nome completo</label><input class="inp nm" id="mf-unom" placeholder="Nome"></div>
       <div style="margin-top:10px"><label class="lbl">E-mail</label><input class="inp nm" id="mf-uemail" type="email" placeholder="email@empresa.com"></div>
@@ -4425,8 +4425,8 @@ function openUserForm(id){
       try{
         await getFB().setDoc(getFB().doc(getDB(),'usuarios',newId),{nome,email,cargoId,ativo:true,ultimo:null,criadoEm:getFB().serverTimestamp(),criadoPor:getUID()});
         const pw=document.getElementById('mf-upw').value;
-        alert(`✅ Perfil criado!\n\nAgora crie o login em:\nSupabase → Authentication → Users → Add user\nE-mail: ${email}\nSenha: ${pw}\n(marque "Auto Confirm User")\n\nO login é ligado ao perfil pelo e-mail.`);
-        closeModal('modal-form'); toast('Usuário criado','ok');
+        alert(`✅ Perfil criado!\n\nAgora crie o login em:\nFirebase Console → Authentication → Add user\nE-mail: ${email}\nSenha: ${pw}\n\nO UID gerado automaticamente pelo Auth será diferente do ID do Firestore. Use o e-mail como referência.`);
+        closeModal('modal-form'); toast('Usuário criado no Firestore','ok');
       }catch(e){toast('Erro: '+e.message,'err');}
     };
   } else {
