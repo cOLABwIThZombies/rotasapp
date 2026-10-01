@@ -1333,33 +1333,49 @@ function waitForData(){
 }
 
 /* ═══════════════════════════════════════════════════════════
-   LISTENERS — técnicos/auxiliares/tipos carregam UMA vez (getDocs)
-   Só ordens, cargos, usuários e auditoria usam onSnapshot
+   LISTENERS — tempo real (Supabase Realtime via onSnapshot)
+   Técnicos, auxiliares, tipos, cargos, usuários, ordens e travas
+   atualizam sozinhos quando qualquer usuário grava. Auditoria: sob demanda.
 ═══════════════════════════════════════════════════════════ */
-async function loadTecnicos(){
-  const{getDocs,collection,query,orderBy}=getFB();
-  const snap=await getDocs(query(collection(getDB(),'tecnicos'),orderBy('ordem','asc')));
+const qTecnicos = () => getFB().query(getFB().collection(getDB(),'tecnicos'),getFB().orderBy('ordem','asc'));
+const qAuxiliares = () => getFB().collection(getDB(),'auxiliares');
+const qTipos = () => getFB().query(getFB().collection(getDB(),'tipos_os'),getFB().orderBy('ordem','asc'));
+
+function aplicarTecnicos(snap){
   S.tecnicos=snap.docs.map(d=>({id:d.id,...d.data()})); // TODOS (inclui inativos p/ histórico)
   S.tecnicosAtivos=S.tecnicos.filter(t=>t.ativo!==false); // só ativos p/ atribuição
-  populateSelects(); renderTecnicos(); renderVeiculos();
+  populateSelects(); renderTecnicos(); renderVeiculos(); renderBoardSeguro();
 }
-async function loadAuxiliares(){
-  const{getDocs,collection}=getFB();
-  const snap=await getDocs(collection(getDB(),'auxiliares'));
+function aplicarAuxiliares(snap){
   S.auxiliares=snap.docs.map(d=>({id:d.id,...d.data()}));
-  renderTecnicos(); renderVeiculos(); renderAuxiliares();
+  renderTecnicos(); renderVeiculos(); renderAuxiliares(); renderBoardSeguro();
 }
-async function loadTipos(){
-  const{getDocs,collection,query,orderBy}=getFB();
-  const snap=await getDocs(query(collection(getDB(),'tipos_os'),orderBy('ordem','asc')));
+function aplicarTipos(snap){
   S.tipos=snap.docs.map(d=>({id:d.id,...d.data()}));
   if(!S.tipos.length) S.tipos=getDefaultTipos();
-  populateSelects(); renderTipos();
+  populateSelects(); renderTipos(); renderBoardSeguro();
+}
+async function loadTecnicos(){ aplicarTecnicos(await getFB().getDocs(qTecnicos())); }
+async function loadAuxiliares(){ aplicarAuxiliares(await getFB().getDocs(qAuxiliares())); }
+async function loadTipos(){ aplicarTipos(await getFB().getDocs(qTipos())); }
+
+// Não redesenha o quadro no meio de um arrastar: espera soltar o card
+let _renderPendente = false;
+function renderBoardSeguro(){
+  if(draggingId){ _renderPendente = true; return; }
+  _renderPendente = false;
+  renderBoard();
 }
 
 function startStaticListeners(){
   const{onSnapshot,collection,query,orderBy,doc}=getFB();
   const db=getDB();
+  const logErro = nome => e => console.warn(`Tempo real (${nome}):`, e);
+
+  // Técnicos, auxiliares e tipos de OS
+  unsubs.tecnicos=onSnapshot(qTecnicos(), aplicarTecnicos, logErro('tecnicos'));
+  unsubs.auxiliares=onSnapshot(qAuxiliares(), aplicarAuxiliares, logErro('auxiliares'));
+  unsubs.tipos=onSnapshot(qTipos(), aplicarTipos, logErro('tipos_os'));
 
   // Cargos
   unsubs.cargos=onSnapshot(collection(db,'cargos'), snap=>{
@@ -1379,32 +1395,36 @@ function startStaticListeners(){
   // Disparo manual em go('auditoria')
 }
 
-// ── POLLING de ordens (substitui onSnapshot — economiza ~90% das leituras)
-// onSnapshot: cobra 1 leitura/doc a cada mudança de qualquer usuário
-// Polling 30s: só busca quando aba está visível
-let _pollingInterval = null;
-let _pollingData = null;
+// ── ORDENS do dia em tempo real (onSnapshot → Supabase Realtime)
+// Qualquer usuário que criar/editar/mover/apagar uma OS atualiza a tela
+// de todos na hora, sem F5.
+let _pollingData = null; // data das ordens acompanhadas no momento
+const qOrdens = data => getFB().query(getFB().collection(getDB(),`rotas/${data}/ordens`),getFB().orderBy('posicao','asc'));
 
+function aplicarOrdens(data, snap){
+  if(data !== _pollingData) return; // resposta atrasada de uma data anterior
+  const now = Date.now();
+  S.ordens[data] = snap.docs.map(d=>{
+    const o = {id:d.id,data,...d.data()};
+    const saved = _recentSaves[o.id];
+    if(saved && (now - saved.ts) < 5000){ o.status = saved.status; }
+    else if(saved){ delete _recentSaves[o.id]; }
+    return o;
+  });
+  renderBoardSeguro();
+  if(data===TODAY_STR) renderTecnicos();
+  if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
+  if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
+}
+function erroOrdens(e){
+  if(e.code==='permission-denied') toast('Sem permissão para esta data.','err');
+  else console.warn('Tempo real (ordens):', e);
+}
+
+// Releitura manual (ex.: ao voltar para a aba, por segurança)
 async function fetchOrdens(data){
-  if(document.hidden) return; // não busca se aba está oculta
-  try{
-    const {getDocs,collection,query,orderBy} = getFB();
-    const snap = await getDocs(query(collection(getDB(),`rotas/${data}/ordens`),orderBy('posicao','asc')));
-    const now = Date.now();
-    S.ordens[data] = snap.docs.map(d=>{
-      const o = {id:d.id,data,...d.data()};
-      const saved = _recentSaves[o.id];
-      if(saved && (now - saved.ts) < 5000){ o.status = saved.status; }
-      else if(saved){ delete _recentSaves[o.id]; }
-      return o;
-    });
-    renderBoard();
-    if(data===TODAY_STR) renderTecnicos();
-    if(document.getElementById('screen-dashboard').classList.contains('on')) renderDashboard();
-    if(document.getElementById('screen-finalizado').classList.contains('on')) renderFinalizado();
-  }catch(e){
-    if(e.code==='permission-denied') toast('Sem permissão para esta data.','err');
-  }
+  try{ aplicarOrdens(data, await getFB().getDocs(qOrdens(data))); }
+  catch(e){ erroOrdens(e); }
 }
 
 function _onVisibilityChange(){
@@ -1412,17 +1432,15 @@ function _onVisibilityChange(){
 }
 
 function subscribeOrdens(data){
-  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval=null; }
   if(unsubs.ordens){ unsubs.ordens(); delete unsubs.ordens; }
-  document.removeEventListener('visibilitychange',_onVisibilityChange);
   _pollingData = data;
-  fetchOrdens(data); // busca imediata
-  _pollingInterval = setInterval(()=>{ if(!document.hidden) fetchOrdens(data); }, 60000);
+  unsubs.ordens = getFB().onSnapshot(qOrdens(data), snap=>aplicarOrdens(data, snap), erroOrdens);
+  document.removeEventListener('visibilitychange',_onVisibilityChange);
   document.addEventListener('visibilitychange',_onVisibilityChange);
 }
 
 function stopOrdens(){
-  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval=null; }
+  if(unsubs.ordens){ unsubs.ordens(); delete unsubs.ordens; }
   document.removeEventListener('visibilitychange',_onVisibilityChange);
   _pollingData = null;
 }
@@ -1790,15 +1808,15 @@ function mapaSair(){
   if(_mapaInterval){ clearInterval(_mapaInterval); _mapaInterval=null; }
 }
 
-async function subscribeTravas(data){
-  // Carregar travas uma vez (sem onSnapshot — economiza leituras)
-  try{
-    const {getDocs,collection} = getFB();
-    const snap = await getDocs(collection(getDB(),`rotas/${data}/travas`));
+function subscribeTravas(data){
+  // Travas do dia em tempo real
+  if(unsubs.travas){ unsubs.travas(); delete unsubs.travas; }
+  const {onSnapshot,collection} = getFB();
+  unsubs.travas = onSnapshot(collection(getDB(),`rotas/${data}/travas`), snap=>{
     S.travas[data] = {};
     snap.docs.forEach(d=>{ S.travas[data][d.id] = d.data(); });
-    renderBoard();
-  }catch(e){ S.travas[data]={}; }
+    if(data===currentDate) renderBoardSeguro();
+  }, e=>{ S.travas[data] = S.travas[data] || {}; console.warn('Tempo real (travas):', e); });
 }
 
 let _travaTecId = null;
@@ -2060,7 +2078,7 @@ function makeCard(o){
       <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':o.periodo==='tarde'?'otag-t':'otag-nd'}">${o.periodo==='manha'?'Mnh':o.periodo==='tarde'?'Trd':'N/D'}</span></div>
     </div>`;
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
-  card.addEventListener('dragend',()=>{card.classList.remove('dragging');draggingId=null;document.querySelectorAll('.empty-slot').forEach(s=>s.classList.remove('dov'))});
+  card.addEventListener('dragend',()=>{card.classList.remove('dragging');draggingId=null;document.querySelectorAll('.empty-slot').forEach(s=>s.classList.remove('dov'));if(_renderPendente)renderBoardSeguro();});
   // Botão de comentário para OS pendentes do dia de hoje
   if(o.status==='pendente' && o.data === TODAY_STR){
     const notaBtn = document.createElement('div');
@@ -2255,8 +2273,7 @@ async function saveDrawer(){
         await logAudit(o.os,'edicao',`${mudancas.length} campo(s) alterado(s)`,'gray',currentDate,mudancas);
       }
       closeDrawer(); toast('OS salva com sucesso','ok');
-      // Atualizar board imediatamente após save (não esperar o próximo ciclo de 30s)
-      if(_pollingData) setTimeout(()=>fetchOrdens(_pollingData), 300);
+      // O board se atualiza sozinho (tempo real) — não precisa reler aqui
     }catch(e){toast('Erro ao salvar: '+e.message,'err');}
   };
   if(isFuture(currentDate)) confirmFuture(doSave); else doSave();
