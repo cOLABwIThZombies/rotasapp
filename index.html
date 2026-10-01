@@ -48,7 +48,7 @@ onAuthStateChanged(auth, async (fbUser) => {
         });
       } else {
         // Atualiza último acesso sem bloquear UI
-        updateDoc(doc(db, "usuarios", fbUser.uid), { ultimo: serverTimestamp() });
+        updateDoc(doc(db, "usuarios", fbUser.uid), { ultimo: serverTimestamp() }).catch(() => {});
       }
       const userData = snap.exists() ? snap.data() : { nome: fbUser.email, cargoId: "c1", ativo: true };
       window._currentUser = { uid: fbUser.uid, ...userData };
@@ -134,6 +134,13 @@ button,select,input,textarea{font-family:inherit}
 .ni:hover{background:var(--bg);color:var(--tx);transform:translateX(2px)}
 .ni.on{background:var(--tx);color:#fff}
 .ni[data-perm].hidden{display:none}
+/* Cargo somente visualização: some com os botões de criar/editar/apagar (as ações também são barradas no código) */
+body.somente-leitura .btn-new,body.somente-leitura .add-card,body.somente-leitura .empty-slot,
+body.somente-leitura .btn-del,body.somente-leitura .btn-lock,body.somente-leitura .btn-aux,
+body.somente-leitura .drw-foot .btn-save,body.somente-leitura .osc-pend-nota,body.somente-leitura .so-edicao,
+body.somente-leitura .lane-lock-banner button,body.somente-leitura #dp-pecas .btn-save,body.somente-leitura .btn-rm-part,
+body.somente-leitura .ctbody .btn-ghost,body.somente-leitura .vcard .btn-ghost,body.somente-leitura #cargos-list .btn-ghost{display:none!important}
+body.somente-leitura .osc{cursor:pointer}
 .ni svg{width:14px;height:14px;flex-shrink:0}
 .suser{padding:11px 14px;border-top:1px solid var(--brd);display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .12s}
 .suser:hover{background:var(--bg)}
@@ -673,7 +680,7 @@ button,select,input,textarea{font-family:inherit}
         <div class="fchip" id="fc-lp" onclick="setFilter('lp',this)">LP</div>
         <div class="fchip" id="fc-ow" onclick="setFilter('ow',this)">OW</div>
         <div class="fchip" id="fc-pend" onclick="setFilter('pend',this)">Pendentes</div>
-        <button class="btn-ghost" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirEnvioCobli()" title="Cria na Cobli as rotas desta data, na ordem do quadro"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 1.5L6 8M12.5 1.5l-4 11-2.5-4.5L1.5 5.5l11-4z"/></svg>Enviar para a Cobli</button>
+        <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirEnvioCobli()" title="Cria na Cobli as rotas desta data, na ordem do quadro"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 1.5L6 8M12.5 1.5l-4 11-2.5-4.5L1.5 5.5l11-4z"/></svg>Enviar para a Cobli</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
       <div class="date-banner" id="date-banner">
@@ -714,7 +721,7 @@ button,select,input,textarea{font-family:inherit}
           <button class="cal-mode-btn"    id="calmode-ano"    onclick="setCalMode('ano')">Ano</button>
           <button class="cal-mode-btn"    id="calmode-geral"  onclick="setCalMode('geral')">Geral</button>
         </div>
-        <button class="btn-ghost" style="font-size:12px;padding:5px 11px" onclick="clonePrompt()">Clonar rota</button>
+        <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px" onclick="clonePrompt()">Clonar rota</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
       <div id="cal-content" style="overflow-y:auto;flex:1"></div>
@@ -822,7 +829,7 @@ button,select,input,textarea{font-family:inherit}
         <div style="background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);padding:16px">
           <div style="font-size:13px;font-weight:600;margin-bottom:12px">Gerenciar Cargos</div>
           <div id="cargos-list"></div>
-          <button class="btn-ghost" style="font-size:12px;margin-top:10px;padding:6px 12px" onclick="openCargoForm()">+ Novo cargo</button>
+          <button class="btn-ghost so-edicao" style="font-size:12px;margin-top:10px;padding:6px 12px" onclick="openCargoForm()">+ Novo cargo</button>
         </div>
       </div>
     </div>
@@ -830,7 +837,7 @@ button,select,input,textarea{font-family:inherit}
     <!-- TIPOS OS -->
     <div id="screen-tipos" class="screen">
       <div class="hdr"><span class="htitle">Tipos de OS</span><div class="hsp"></div>
-        <button class="btn-ghost" onclick="restaurarTiposPadrao()" style="font-size:12px;padding:5px 11px;color:var(--err);border-color:var(--err)" title="Recriar os 14 tipos originais no banco">↺ Restaurar tipos padrão</button>
+        <button class="btn-ghost so-edicao" onclick="restaurarTiposPadrao()" style="font-size:12px;padding:5px 11px;color:var(--err);border-color:var(--err)" title="Recriar os 14 tipos originais no banco">↺ Restaurar tipos padrão</button>
         <button class="btn-new" onclick="openTipoForm()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Novo tipo</button>
       </div>
       <div class="crud-wrap"><div class="crud-table"><table style="width:100%;border-collapse:collapse"><thead><tr class="cthead"><th>Tipo</th><th>Aparência</th><th style="text-align:right">Ações</th></tr></thead><tbody class="ctbody" id="tipo-body"></tbody></table></div></div>
@@ -1167,7 +1174,30 @@ const unsubs = {};   // listeners ativos: { ordens, tecnicos, auxiliares, tipos,
 function getFB()   { return window._FB; }
 function getDB()   { return window._FB.db; }
 function getUID()  { return window._currentUser?.uid; }
-function isAdmin() { return window._currentCargo?.perms?.includes('usuarios'); }
+// Cargo "somente visualização": vê as telas liberadas, mas não altera nada
+function somenteLeitura() { return !!window._currentCargo?.somenteLeitura; }
+function isAdmin() { return !somenteLeitura() && window._currentCargo?.perms?.includes('usuarios'); }
+const MSG_SO_LEITURA = 'Seu acesso é somente de visualização.';
+function bloqueadoLeitura(){
+  if(!somenteLeitura()) return false;
+  toast(MSG_SO_LEITURA,'warn');
+  return true;
+}
+// Rede de segurança: com cargo somente leitura, as gravações do app falham antes de sair do navegador.
+// (O banco também recusa — ver supabase/migrations/20261001000000_cargo_somente_leitura.sql)
+const _fbGravacoes = {};
+function aplicarSomenteLeitura(){
+  const fb = getFB();
+  for(const n of ['setDoc','updateDoc','deleteDoc','addDoc','writeBatch']){
+    _fbGravacoes[n] ||= fb[n];
+    fb[n] = _fbGravacoes[n];
+  }
+  document.body.classList.toggle('somente-leitura', somenteLeitura());
+  if(!somenteLeitura()) return;
+  const recusar = async () => { throw new Error(MSG_SO_LEITURA); };
+  fb.setDoc = fb.updateDoc = fb.deleteDoc = fb.addDoc = recusar;
+  fb.writeBatch = () => { const b = { set:()=>b, update:()=>b, delete:()=>b, commit:recusar }; return b; };
+}
 const uid      = () => 'x'+Math.random().toString(36).slice(2,9);
 const fmtBRL   = v => (!v||isNaN(v)) ? '—' : 'R$ '+parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
 const fmtDate  = d => { try{const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})}catch{return d}};
@@ -1323,7 +1353,8 @@ window.bootApp = async function(){
   // UI de identidade
   document.getElementById('sav-ini').textContent=u.nome.split(' ').map(n=>n[0]).slice(0,2).join('');
   document.getElementById('sav-nm').textContent=u.nome.split(' ')[0];
-  document.getElementById('sav-rl').textContent=window._currentCargo.nome;
+  aplicarSomenteLeitura();
+  document.getElementById('sav-rl').textContent=window._currentCargo.nome+(somenteLeitura()?' · só leitura':'');
   document.getElementById('sav-bd').textContent=window._currentCargo.nome.slice(0,3).toUpperCase();
 
   // Aplicar permissões ao nav
@@ -1415,8 +1446,9 @@ function startStaticListeners(){
 
   // Cargos
   unsubs.cargos=onSnapshot(collection(db,'cargos'), snap=>{
-    S.cargos=snap.docs.map(d=>({id:d.id,...d.data()}));
-    if(!S.cargos.length) S.cargos=getDefaultCargos();
+    // Cargos padrão + os gravados no banco (um cargo gravado com o mesmo id substitui o padrão)
+    const gravados=snap.docs.map(d=>({id:d.id,...d.data()}));
+    S.cargos=[...getDefaultCargos().filter(p=>!gravados.some(g=>g.id===p.id)),...gravados];
     if(document.getElementById('screen-usuarios').classList.contains('on')) renderUsuarios();
   });
 
@@ -2399,6 +2431,7 @@ function go(name,el){
     if(name==='mapa') mapaEntrar();
     else mapaSair();
     if(name==='finalizado') renderFinalizado();
+    if(name==='usuarios') renderUsuarios();
     if(name==='auditoria'){
       // Carregar auditoria sob demanda (não fica em onSnapshot)
       const {getDocs,collection,query,orderBy} = getFB();
@@ -2579,7 +2612,7 @@ function makeCard(o){
   const ts=getTipo(o.tipo);
   const stClass = o.status==='finalizado'?' st-done':o.status==='pendente'?' st-pendente':o.status==='em_progresso'?' st-progresso':'';
   const card=document.createElement('div'); card.className=`osc prio-${o.prio||'lp'}${stClass}`;
-  card.draggable=true; card.dataset.id=o.id;
+  card.draggable=!somenteLeitura(); card.dataset.id=o.id;
   card.innerHTML=`<div class="osc-sdot ${o.status==='finalizado'?'done':o.status==='pendente'?'pendente':o.status==='em_progresso'?'progresso':o.ftc==='sim'?'ftc':''}"></div>
     <div class="osc-num" style="${o.status==='pendente'?'color:#b91c1c':o.status==='finalizado'?'color:var(--ok)':''}">${o.os||'—'}</div>
     <div class="osc-tipo" style="background:${ts.bg};color:${ts.color}">${o.tipo||'—'}</div>
@@ -4931,7 +4964,7 @@ function renderUsuarios(){
     const cargo=getCargo(u.cargoId);
     return `<tr>
       <td><div style="font-size:13px;font-weight:500">${u.nome}</div><div style="font-size:11px;color:var(--tx3)">${u.email}</div></td>
-      <td><span class="pill ${u.cargoId==='c1'||cargo.perms.includes('usuarios')?'pill-err':'pill-ok'}">${cargo.nome}</span></td>
+      <td><span class="pill ${cargo.somenteLeitura?'pill-gray':u.cargoId==='c1'||cargo.perms.includes('usuarios')?'pill-err':'pill-ok'}">${cargo.nome}</span>${cargo.somenteLeitura?'<div style="font-size:10px;color:var(--tx3);margin-top:2px">somente visualização</div>':''}</td>
       <td style="font-size:11px;color:var(--tx2);max-width:200px">${cargo.perms.slice(0,4).join(', ')}${cargo.perms.length>4?' +'+(cargo.perms.length-4):''}</td>
       <td style="font-size:11.5px;color:var(--tx2)">${u.ultimo?.toDate?u.ultimo.toDate().toLocaleDateString('pt-BR'):u.ultimo||'—'}</td>
       <td style="text-align:right">
@@ -4946,6 +4979,7 @@ function renderUsuarios(){
     <div style="border:1px solid var(--brd);border-radius:8px;padding:12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <span style="font-size:13px;font-weight:600">${c.nome}</span>
+        ${c.somenteLeitura?'<span class="pill pill-warn">Somente visualização</span>':''}
         <button class="btn-ghost" style="font-size:11px;padding:3px 8px;margin-left:auto" onclick="editCargo('${c.id}')">Editar permissões</button>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:5px">
@@ -5026,16 +5060,26 @@ async function removeUser(id){
   });
 }
 
+// Opção "somente visualização" dos formulários de cargo
+const _cargoLeituraHtml = marcado => `<label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:9px 10px;background:var(--warn-bg);border:1px solid #f5d98a;border-radius:6px;cursor:pointer">
+  <input type="checkbox" id="cargo-leitura" ${marcado?'checked':''} style="width:14px;height:14px;margin-top:2px">
+  <span style="font-size:12.5px;color:var(--warn-tx)"><b>Somente visualização</b><br><span style="font-size:11.5px">Vê as telas marcadas acima, mas não cria, edita, move nem apaga nada.</span></span>
+</label>`;
+
 function editCargo(id){
   const c=S.cargos.find(x=>x.id===id); if(!c)return;
   document.getElementById('mf-title').textContent='Permissões — '+c.nome;
   document.getElementById('mf-body').innerHTML=`
     <div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Permissões do cargo <b>${c.nome}</b>:</div>
-    ${Object.entries(ALL_PERMS).map(([k,v])=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:.5px solid var(--brd);cursor:pointer"><input type="checkbox" id="perm-${k}" ${c.perms.includes(k)?'checked':''} style="width:14px;height:14px"><span style="font-size:13px">${v}</span></label>`).join('')}`;
+    ${Object.entries(ALL_PERMS).map(([k,v])=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:.5px solid var(--brd);cursor:pointer"><input type="checkbox" id="perm-${k}" ${c.perms.includes(k)?'checked':''} style="width:14px;height:14px"><span style="font-size:13px">${v}</span></label>`).join('')}
+    ${_cargoLeituraHtml(c.somenteLeitura)}`;
   document.getElementById('mf-save').onclick=async()=>{
     const perms=Object.keys(ALL_PERMS).filter(k=>document.getElementById('perm-'+k)?.checked);
+    const somenteLeitura=!!document.getElementById('cargo-leitura')?.checked;
+    if(somenteLeitura && id===window._currentCargo?.id){toast('Você não pode tornar o seu próprio cargo somente visualização.','warn');return;}
     try{
-      await getFB().updateDoc(getFB().doc(getDB(),'cargos',id),{perms});
+      // setDoc (e não updateDoc): os cargos padrão só passam a existir no banco quando são editados
+      await getFB().setDoc(getFB().doc(getDB(),'cargos',id),{nome:c.nome,perms,somenteLeitura});
       closeModal('modal-form'); toast('Permissões atualizadas','ok');
     }catch(e){toast('Erro: '+e.message,'err');}
   };
@@ -5047,14 +5091,16 @@ function openCargoForm(){
   document.getElementById('mf-body').innerHTML=`
     <div><label class="lbl">Nome do cargo</label><input class="inp nm" id="mf-cnom" placeholder="Ex: Supervisor"></div>
     <div style="margin-top:8px;font-size:12px;color:var(--tx2);margin-bottom:5px">Permissões:</div>
-    ${Object.entries(ALL_PERMS).map(([k,v])=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--brd);cursor:pointer"><input type="checkbox" id="perm-${k}" style="width:14px;height:14px"><span style="font-size:12.5px">${v}</span></label>`).join('')}`;
+    ${Object.entries(ALL_PERMS).map(([k,v])=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--brd);cursor:pointer"><input type="checkbox" id="perm-${k}" style="width:14px;height:14px"><span style="font-size:12.5px">${v}</span></label>`).join('')}
+    ${_cargoLeituraHtml(false)}`;
   document.getElementById('mf-save').onclick=async()=>{
     const nome=document.getElementById('mf-cnom').value.trim();
     if(!nome){toast('Informe o nome','err');return;}
     const perms=Object.keys(ALL_PERMS).filter(k=>document.getElementById('perm-'+k)?.checked);
+    const somenteLeitura=!!document.getElementById('cargo-leitura')?.checked;
     const newId=uid();
     try{
-      await getFB().setDoc(getFB().doc(getDB(),'cargos',newId),{nome,perms});
+      await getFB().setDoc(getFB().doc(getDB(),'cargos',newId),{nome,perms,somenteLeitura});
       closeModal('modal-form'); toast('Cargo criado','ok');
     }catch(e){toast('Erro: '+e.message,'err');}
   };
@@ -5161,6 +5207,7 @@ function getDefaultCargos(){
     {id:'c1',nome:'Administrador',perms:ALL},
     {id:'c2',nome:'Supervisor',perms:['rotas','dashboard','relatorios','finalizado','calendario','auditoria']},
     {id:'c3',nome:'Operacional',perms:['rotas','dashboard','finalizado','calendario']},
+    {id:'c4',nome:'Visualizador',perms:ALL,somenteLeitura:true}, // vê tudo, não altera nada
   ];
 }
 
@@ -5271,6 +5318,18 @@ window.capturarTela = async function(elementId, nome){
     console.error('capturarTela err:', e);
   }
 };
+
+/* ── SOMENTE VISUALIZAÇÃO: toda ação que grava é barrada na entrada ── */
+['saveDrawer','saveOS','deleteOS','dropOnLane','openModalOS','clonePrompt','replicarPendentes',
+ 'abrirTravaModal','salvarTrava','removerTrava','abrirNotaPend','salvarNotaPend','autoSaveNotaPend',
+ 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli',
+ 'openTecForm','removeTec','reativarTec','openAuxForm','openTrocaAux',
+ 'openUserForm','resetUserPassword','removeUser','editCargo','openCargoForm',
+ 'openTipoForm','removeTipo','restaurarTiposPadrao'].forEach(nome=>{
+  const original=window[nome];
+  if(typeof original!=='function'){console.warn('Ação não encontrada para proteger:',nome);return;}
+  window[nome]=function(...args){ if(bloqueadoLeitura()) return; return original.apply(this,args); };
+});
 
 /* ── ESC ── */
 document.addEventListener('keydown',e=>{

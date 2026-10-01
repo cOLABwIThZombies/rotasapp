@@ -135,7 +135,37 @@ async function exigirLogin(req, res) {
   if (!token) { res.status(401).json({ error: { message: 'Faça login para usar este recurso.' } }); return false; }
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data?.user) { res.status(401).json({ error: { message: 'Sessão expirada. Entre novamente.' } }); return false; }
-  return true;
+  return data.user;
+}
+
+// Ações que alteram algo fora do banco (rotas na Cobli): além do login, o cargo do usuário
+// não pode ser "somente visualização". Mesmo critério do app e do banco (fs_somente_leitura):
+// perfil = documento de "usuarios" com o id do login ou o mesmo e-mail; cargo c4 é o Visualizador padrão.
+async function exigirEdicao(req, res) {
+  const user = await exigirLogin(req, res);
+  if (!user) return false;
+  try {
+    const email = (user.email || '').trim().toLowerCase();
+    const { data: perfis, error } = await sb.from('documentos').select('id,dados').eq('colecao', 'usuarios');
+    if (error) throw error;
+    const perfil = perfis.find(p => p.id === user.id) || perfis
+      .filter(p => String(p.dados?.email || '').trim().toLowerCase() === email)
+      .sort((a, b) => (a.dados?.ativo === false) - (b.dados?.ativo === false) || (a.id < b.id ? -1 : 1))[0];
+    const cargoId = perfil?.dados?.cargoId;
+    if (cargoId) {
+      const { data: cargo, error: e2 } = await sb.from('documentos').select('dados').eq('colecao', 'cargos').eq('id', String(cargoId)).maybeSingle();
+      if (e2) throw e2;
+      if (cargo ? cargo.dados?.somenteLeitura === true : cargoId === 'c4') {
+        res.status(403).json({ error: { message: 'Seu acesso é somente de visualização.' } });
+        return false;
+      }
+    }
+    return true;
+  } catch (e) {
+    console.error('exigirEdicao:', e.message);
+    res.status(500).json({ error: { message: 'Não foi possível verificar a sua permissão.' } });
+    return false;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -235,7 +265,7 @@ async function cobliEscrever(res, metodo, caminho, corpo) {
 
 app.post('/api/cobli/rotas', async (req, res) => {
   if (!COBLI_API_KEY) return res.status(503).json({ error: { message: 'Cobli não configurada: defina COBLI_API_KEY no Render.' } });
-  if (!(await exigirLogin(req, res))) return;
+  if (!(await exigirEdicao(req, res))) return;
   const rotas = req.body?.rotas;
   if (!Array.isArray(rotas) || !rotas.length || rotas.length > 20 || rotas.some(r => !r || typeof r !== 'object' || !Array.isArray(r.services) || !r.services.length)) {
     return res.status(400).json({ error: { message: 'Envie de 1 a 20 rotas, cada uma com pelo menos uma parada.' } });
@@ -245,7 +275,7 @@ app.post('/api/cobli/rotas', async (req, res) => {
 
 app.post('/api/cobli/rotas/excluir', async (req, res) => {
   if (!COBLI_API_KEY) return res.status(503).json({ error: { message: 'Cobli não configurada: defina COBLI_API_KEY no Render.' } });
-  if (!(await exigirLogin(req, res))) return;
+  if (!(await exigirEdicao(req, res))) return;
   const ids = req.body?.ids;
   if (!Array.isArray(ids) || !ids.length || ids.length > 20 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id)))) {
     return res.status(400).json({ error: { message: 'Informe de 1 a 20 ids de rota.' } });
