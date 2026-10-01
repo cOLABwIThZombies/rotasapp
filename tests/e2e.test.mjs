@@ -46,6 +46,14 @@ function subirMock() {
     chamadasMock.push({ api: 'cobli', chave: req.headers['cobli-api-key'] });
     res.json({ devices: [] });
   });
+  app.post('/public/v1/routes', (req, res) => {
+    chamadasMock.push({ api: 'cobli-rota', chave: req.headers['cobli-api-key'], corpo: req.body });
+    res.json(req.body.map((r, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name: r.name })));
+  });
+  app.delete('/public/v2/routes', (req, res) => {
+    chamadasMock.push({ api: 'cobli-excluir', chave: req.headers['cobli-api-key'], ids: [].concat(req.query.ids) });
+    res.json([].concat(req.query.ids));
+  });
   return new Promise(r => { const s = app.listen(PORTA_MOCK, () => r(s)); });
 }
 const d0 = new Date();
@@ -432,4 +440,20 @@ test('IA (Gemini): sem login é recusado; erro do Gemini chega legível ao usuá
   assert.equal(chamadasMock.filter(x => x.api === 'cobli').at(-1).chave, 'chave-cobli-teste');
   const cobRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli`, { method: 'POST', headers: h, body: JSON.stringify({ endpoint: 'http://evil.com/x' }) });
   assert.equal(cobRuim.status, 400);
+  // Rotas na Cobli: criar e excluir (repasse com a chave do servidor)
+  const rota = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas`, { method: 'POST', headers: h, body: JSON.stringify({ rotas: [{ name: 'TESTE', services: [{ name: '123' }] }] }) });
+  assert.equal(rota.status, 200);
+  const rotaMock = chamadasMock.filter(x => x.api === 'cobli-rota').at(-1);
+  assert.equal(rotaMock.chave, 'chave-cobli-teste');
+  assert.equal(rotaMock.corpo[0].name, 'TESTE');
+  const rotaVazia = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas`, { method: 'POST', headers: h, body: JSON.stringify({ rotas: [] }) });
+  assert.equal(rotaVazia.status, 400);
+  const idRota = '00000000-0000-4000-8000-000000000000';
+  const excluir = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas/excluir`, { method: 'POST', headers: h, body: JSON.stringify({ ids: [idRota] }) });
+  assert.equal(excluir.status, 200);
+  assert.deepEqual(chamadasMock.filter(x => x.api === 'cobli-excluir').at(-1).ids, [idRota]);
+  const excluirRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas/excluir`, { method: 'POST', headers: h, body: JSON.stringify({ ids: ['x; drop'] }) });
+  assert.equal(excluirRuim.status, 400);
+  const rotaSemLogin = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rotas: [{ services: [{}] }] }) });
+  assert.equal(rotaSemLogin.status, 401);
 });

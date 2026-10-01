@@ -212,6 +212,48 @@ app.post('/api/cobli', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
+// Rotas na Cobli (botão "Enviar para a Cobli" do quadro de rotas)
+// POST /api/cobli/rotas          { rotas: [RouteInput] } → POST /public/v1/routes
+// POST /api/cobli/rotas/excluir  { ids: [uuid] }         → DELETE /public/v2/routes
+// A resposta da Cobli (status e corpo) é devolvida como veio.
+// ══════════════════════════════════════════════════════════════
+async function cobliEscrever(res, metodo, caminho, corpo) {
+  try {
+    const r = await fetch(COBLI_API_URL + caminho, {
+      method: metodo,
+      headers: { [COBLI_HEADER]: COBLI_API_KEY, Accept: 'application/json', ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+      signal: AbortSignal.timeout(60000),
+    });
+    const texto = await r.text();
+    if (!r.ok) console.error('Cobli rotas:', metodo, r.status, texto.slice(0, 300));
+    res.status(r.status).type('application/json').send(texto || '{}');
+  } catch (e) {
+    res.status(502).json({ error: { message: 'Falha ao falar com a Cobli: ' + e.message } });
+  }
+}
+
+app.post('/api/cobli/rotas', async (req, res) => {
+  if (!COBLI_API_KEY) return res.status(503).json({ error: { message: 'Cobli não configurada: defina COBLI_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  const rotas = req.body?.rotas;
+  if (!Array.isArray(rotas) || !rotas.length || rotas.length > 20 || rotas.some(r => !r || typeof r !== 'object' || !Array.isArray(r.services) || !r.services.length)) {
+    return res.status(400).json({ error: { message: 'Envie de 1 a 20 rotas, cada uma com pelo menos uma parada.' } });
+  }
+  await cobliEscrever(res, 'POST', '/public/v1/routes', rotas);
+});
+
+app.post('/api/cobli/rotas/excluir', async (req, res) => {
+  if (!COBLI_API_KEY) return res.status(503).json({ error: { message: 'Cobli não configurada: defina COBLI_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 20 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id)))) {
+    return res.status(400).json({ error: { message: 'Informe de 1 a 20 ids de rota.' } });
+  }
+  await cobliEscrever(res, 'DELETE', '/public/v2/routes?' + ids.map(id => 'ids=' + id).join('&') + '&propagation_type=ONLY_THIS_ROUTE');
+});
+
+// ══════════════════════════════════════════════════════════════
 // GET /api/visita — o agente do RD busca a visita do cliente
 // Parâmetros (qualquer um): ?telefone= | ?os= | ?nome=
 // Header obrigatório: x-api-key

@@ -673,6 +673,7 @@ button,select,input,textarea{font-family:inherit}
         <div class="fchip" id="fc-lp" onclick="setFilter('lp',this)">LP</div>
         <div class="fchip" id="fc-ow" onclick="setFilter('ow',this)">OW</div>
         <div class="fchip" id="fc-pend" onclick="setFilter('pend',this)">Pendentes</div>
+        <button class="btn-ghost" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirEnvioCobli()" title="Cria na Cobli as rotas desta data, na ordem do quadro"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 1.5L6 8M12.5 1.5l-4 11-2.5-4.5L1.5 5.5l11-4z"/></svg>Enviar para a Cobli</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
       <div class="date-banner" id="date-banner">
@@ -990,6 +991,24 @@ button,select,input,textarea{font-family:inherit}
     <div class="mhdr"><span class="mtitle" id="mf-title">—</span><button class="mclose" onclick="closeModal('modal-form')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div>
     <div class="mbody s1" id="mf-body"></div>
     <div class="mfoot"><button class="btn-ghost" onclick="closeModal('modal-form')">Cancelar</button><button class="btn-save" id="mf-save">Salvar</button></div>
+  </div>
+</div>
+
+<!-- MODAL ENVIO DE ROTAS PARA A COBLI -->
+<div class="moverlay" id="modal-cobli" onclick="if(event.target===this)fecharEnvioCobli()">
+  <div class="modal" style="width:480px">
+    <div class="mhdr">
+      <div>
+        <span class="mtitle">Enviar rotas para a Cobli</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:3px" id="cobli-sub">—</div>
+      </div>
+      <button class="mclose" onclick="fecharEnvioCobli()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <div class="mbody s1" id="cobli-body" style="gap:0"></div>
+    <div class="mfoot">
+      <button class="btn-ghost" onclick="fecharEnvioCobli()" id="cobli-cancelar">Cancelar</button>
+      <button class="btn-save" style="flex:none;padding:9px 16px" id="cobli-enviar" onclick="enviarRotasCobli()">Enviar selecionadas</button>
+    </div>
   </div>
 </div>
 
@@ -2067,6 +2086,246 @@ function mapaSair(){
   _mapaAtivo = false;
   if(_mapaInterval){ clearInterval(_mapaInterval); _mapaInterval=null; }
 }
+
+/* ════════════════════════════════════════════════════════
+   ENVIO DAS ROTAS DO DIA PARA A COBLI
+   Botão "Enviar para a Cobli" no quadro: cria na Cobli uma rota por técnico
+   (base → OS na ordem do quadro → base), no padrão das rotas feitas à mão lá:
+   nome "TÉCNICO / AUXILIAR" e cada parada com o número da OS.
+   O que já foi enviado fica em rotas/<data>/cobli/<techId> (para reenviar sem duplicar).
+════════════════════════════════════════════════════════ */
+// Base como está cadastrada nas rotas da Cobli (Av. Pedroso de Morais, 670)
+const COBLI_BASE = {
+  coordinates: { latitude: -23.5642093, longitude: -46.6908927 },
+  address: { street_name: 'Av. Pedroso de Morais', number: '670', neighborhood: 'Pinheiros', city: 'São Paulo', state: 'SP', country: 'Brasil' },
+};
+let _cobliEnvio = null; // { data, linhas:[{t, os, nome, vehicleId, enviado, assinatura, estado, msg}], enviando }
+
+async function _cobliApi(caminho, corpo){
+  const resp = await fetch(caminho, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', ...(await _authHeader())},
+    body: JSON.stringify(corpo)
+  });
+  const data = await resp.json().catch(()=>({}));
+  if(!resp.ok){
+    const detalhe = data.errors ? Object.entries(data.errors).map(([k,v])=>`${k}: ${v}`).join('; ') : '';
+    const e = new Error(data.error?.message || detalhe || data.message || `Cobli: HTTP ${resp.status}`);
+    e.status = resp.status;
+    throw e;
+  }
+  return data;
+}
+
+const _cobliAssinatura = os => os.map(o=>[o.id,o.os,o.endereco,o.complemento,o.bairro,o.cep].join('|')).join('\n');
+
+window.abrirEnvioCobli = async function(){
+  const data = currentDate;
+  const tecs = (S.tecnicosAtivos||[])
+    .map(t => ({ t, os: ordensForDate(data).filter(o=>o.techId===t.id).sort((a,b)=>(a.posicao||0)-(b.posicao||0)) }))
+    .filter(x => x.os.length);
+  if(!tecs.length){ toast('Nenhuma OS nesta data para enviar.','warn'); return; }
+
+  document.getElementById('cobli-sub').textContent = fmtDate(data);
+  document.getElementById('cobli-body').innerHTML = '<div class="ia-loading" style="color:var(--tx2);padding:14px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span>Consultando a Cobli...</div>';
+  document.getElementById('cobli-enviar').disabled = true;
+  openModal('modal-cobli');
+  try{
+    const {getDocs,collection} = getFB();
+    const [dev, snap] = await Promise.all([
+      _mapaCobli(COBLI_ENDPOINT),
+      getDocs(collection(getDB(),`rotas/${data}/cobli`)),
+    ]);
+    const veiculos = {}; // placa → vehicle_id
+    (dev.devices||[]).forEach(d => { const p = _mapaPlaca(d.vehicle?.license_plate); if(p) veiculos[p] = d.vehicle.vehicle_id || d.vehicle.id; });
+    const enviados = {}; snap.docs.forEach(d => { enviados[d.id] = d.data(); });
+
+    _cobliEnvio = { data, enviando:false, linhas: tecs.map(({t, os}) => {
+      const aux = getAux(t.id);
+      const auxNome = aux&&aux.nome&&aux.nome.toLowerCase()!=='na' ? aux.nome : '';
+      const enviado = enviados[t.id] || null, assinatura = _cobliAssinatura(os);
+      const comEndereco = os.filter(o=>o.endereco&&o.endereco.trim()).length;
+      return { t, os, assinatura, enviado, comEndereco,
+        nome: (t.nome + (auxNome ? ' / '+auxNome : '')).toUpperCase(),
+        vehicleId: veiculos[_mapaPlaca(t.placa)] || null,
+        // marca por padrão o que é novo ou mudou desde o envio
+        marcado: comEndereco > 0 && (!enviado || enviado.assinatura !== assinatura),
+        estado: '', msg: '' };
+    })};
+    _cobliRender();
+  }catch(e){
+    document.getElementById('cobli-body').innerHTML = `<div style="font-size:12.5px;color:var(--err);padding:10px 0">Não foi possível consultar a Cobli: ${e.message}</div>`;
+  }
+};
+
+window.fecharEnvioCobli = function(){
+  if(_cobliEnvio?.enviando) return; // não fecha no meio do envio
+  closeModal('modal-cobli'); _cobliEnvio = null;
+};
+
+function _cobliRender(){
+  const E = _cobliEnvio; if(!E) return;
+  const hora = document.getElementById('cobli-hora')?.value || '08:00';
+  const min  = document.getElementById('cobli-min')?.value || '40';
+  const linhas = E.linhas.map((l,i) => {
+    const env = l.enviado;
+    const quando = env?.enviadoEm?.toDate ? env.enviadoEm.toDate().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    let status, cor = 'var(--tx3)';
+    if(l.estado==='enviando'){ status = `<span class="ia-loading" style="color:var(--tx2);font-size:11px"><span class="spin" style="width:10px;height:10px;border-color:var(--brd2);border-top-color:var(--tx2)"></span>${l.msg||'Enviando...'}</span>`; }
+    else if(l.estado==='ok'){ status = '✓ '+l.msg; cor = 'var(--ok-tx)'; }
+    else if(l.estado==='erro'){ status = '✗ '+l.msg; cor = 'var(--err)'; }
+    else if(!l.comEndereco){ status = 'Nenhuma OS com endereço'; cor = 'var(--warn-tx)'; }
+    else if(env && env.assinatura === l.assinatura){ status = `Já enviada ${quando}${env.user ? ' por '+env.user.split(' ')[0] : ''}`; cor = 'var(--ok-tx)'; }
+    else if(env){ status = `Alterada desde o envio de ${quando} — será substituída`; cor = 'var(--warn-tx)'; }
+    else status = 'Ainda não enviada';
+    const avisos = [
+      l.comEndereco && l.comEndereco < l.os.length ? `${l.os.length - l.comEndereco} OS sem endereço fica(m) de fora` : '',
+      !l.vehicleId ? 'sem veículo na Cobli (rota vai sem veículo)' : '',
+    ].filter(Boolean).join(' · ');
+    return `<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:.5px solid var(--brd);cursor:${l.comEndereco&&!E.enviando?'pointer':'default'}">
+      <input type="checkbox" style="width:15px;height:15px;margin-top:2px;flex-shrink:0" ${l.marcado?'checked':''} ${!l.comEndereco||E.enviando?'disabled':''} onchange="_cobliEnvio.linhas[${i}].marcado=this.checked;_cobliBotao()">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.nome}</span><span style="font-size:11px;color:var(--tx3);white-space:nowrap;margin-left:auto">${l.os.length} OS</span></div>
+        <div style="font-size:11px;color:${cor};margin-top:2px">${status}</div>
+        ${avisos ? `<div style="font-size:10.5px;color:var(--tx3);margin-top:1px">${avisos}</div>` : ''}
+      </div>
+    </label>`;
+  }).join('');
+  document.getElementById('cobli-body').innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:6px">
+      <div style="flex:1"><label class="lbl">Saída da base</label><input class="inp nm" type="time" id="cobli-hora" value="${hora}" ${E.enviando?'disabled':''}></div>
+      <div style="flex:1"><label class="lbl">Minutos por OS</label><input class="inp nm" type="number" id="cobli-min" value="${min}" min="5" max="240" step="5" ${E.enviando?'disabled':''}></div>
+    </div>
+    ${linhas}
+    <div style="font-size:10.5px;color:var(--tx3);line-height:1.5;margin-top:10px">Cada rota sai da base, passa pelas OS na ordem do quadro e volta à base. A parada leva o número da OS; cliente, telefone, modelo e defeito vão nas instruções para o motorista.</div>`;
+  _cobliBotao();
+}
+
+window._cobliBotao = function(){
+  const E = _cobliEnvio, btn = document.getElementById('cobli-enviar'); if(!E||!btn) return;
+  const n = E.linhas.filter(l=>l.marcado).length;
+  btn.disabled = E.enviando || !n;
+  btn.textContent = E.enviando ? 'Enviando...' : n ? `Enviar ${n} rota${n>1?'s':''}` : 'Enviar selecionadas';
+  document.getElementById('cobli-cancelar').textContent = E.linhas.some(l=>l.estado==='ok') ? 'Fechar' : 'Cancelar';
+};
+
+// Texto que o motorista vê na parada (o telefone vai aqui, e não no campo de telefone,
+// para a Cobli não usar o número do cliente em mensagens automáticas)
+function _cobliInstrucoes(o){
+  const periodo = o.periodo==='manha' ? 'Manhã' : o.periodo==='tarde' ? 'Tarde' : '';
+  return [
+    [o.tipo, periodo, (o.prio||'').toUpperCase()].filter(Boolean).join(' · '),
+    [o.nome_cliente && 'Cliente: '+o.nome_cliente, o.tel && 'Tel: '+o.tel].filter(Boolean).join(' · '),
+    [o.modelo && 'Modelo: '+o.modelo, o.serial && 'Serial: '+o.serial].filter(Boolean).join(' · '),
+    o.defeito && 'Defeito: '+o.defeito,
+    o.complemento && 'Compl.: '+o.complemento,
+    o.obs && 'Obs.: '+o.obs,
+  ].filter(Boolean).join('\n').slice(0, 1000);
+}
+
+async function _cobliEnviarLinha(l, E, inicio, durServico){
+  const {setDoc,deleteDoc,doc,serverTimestamp} = getFB();
+  const ref = doc(getDB(),`rotas/${E.data}/cobli`,l.t.id);
+  const prog = msg => { l.msg = msg; _cobliRender(); };
+
+  prog('Localizando endereços...');
+  const os = l.os.filter(o=>o.endereco&&o.endereco.trim());
+  // Trajeto pelo OpenRouteService. Se ele estiver fora do ar/sem cota, ou não achar algum
+  // endereço, a parada vai só com o endereço e a própria Cobli localiza.
+  let r = null;
+  try{ r = await calcularRotaORS(os, {tolerante:true, onProgresso:prog}); }
+  catch(e){ console.warn('Rota sem trajeto calculado ('+l.nome+'):', e.message); }
+  const completa = !!r && r.pontos.length === os.length;
+
+  // Horário de cada parada: com o trajeto, usa o tempo de direção calculado (por trecho quando o
+  // serviço informa, senão dividido igualmente entre os trechos); sem ele, estima 20 min por trecho
+  const temPernas = completa && r.pernas.length === os.length + 1;
+  const trecho = i => !completa ? 20*60000
+    : Math.round((temPernas ? r.pernas[i] : r.durSec/(os.length+1)) * 1000);
+  let relogio = inicio;
+  const services = os.map((o,i) => {
+    relogio += trecho(i);
+    const coord = _geoCache.get(enderecoOS(o));
+    const s = {
+      location: {
+        coordinates: coord ? { latitude: coord[1], longitude: coord[0] } : undefined,
+        address: { street_name: o.endereco, complement: o.complemento||undefined, neighborhood: o.bairro||undefined, postal_code: o.cep||undefined, state: 'SP', country: 'Brasil' },
+      },
+      external_id: String(o.os),
+      name: String(o.os),
+      instructions: _cobliInstrucoes(o) || undefined,
+      start_time: relogio,
+      duration: durServico,
+    };
+    relogio += durServico;
+    return s;
+  });
+  const total = relogio + trecho(os.length) - inicio;
+  if(total > 24*3600000) throw new Error('Rota com mais de 24 horas — reduza os minutos por OS');
+  const rota = {
+    external_id: `rotasapp-${E.data}-${l.t.id}`,
+    name: l.nome,
+    start_time: inicio, end_time: inicio + total,
+    total_duration: total, total_distance: completa ? Math.round(r.km*1000) : undefined,
+    start_location: COBLI_BASE, end_location: COBLI_BASE,
+    services,
+  };
+  if(l.vehicleId) rota.vehicle_id = l.vehicleId;
+
+  // Reenvio: apaga a rota anterior na Cobli para não duplicar
+  if(l.enviado?.routeId){
+    prog('Substituindo a rota anterior...');
+    try{ await _cobliApi('/api/cobli/rotas/excluir', {ids:[l.enviado.routeId]}); }
+    catch(e){ if(e.status !== 404) throw new Error('Não foi possível apagar a rota anterior na Cobli: '+e.message); }
+    await deleteDoc(ref); l.enviado = null;
+  }
+
+  prog('Criando a rota na Cobli...');
+  const resp = await _cobliApi('/api/cobli/rotas', {rotas:[rota]});
+  const criada = Array.isArray(resp) ? resp[0] : (resp.data?.[0] || resp.data || resp);
+  // A Cobli devolve as coordenadas que ela mesma localizou: aproveita no mapa e no romaneio
+  (criada?.services||[]).forEach((s,i) => {
+    const c = s.location?.coordinates, chave = os[i] && enderecoOS(os[i]);
+    if(chave && c?.latitude != null && !_geoCache.has(chave)) _geoCache.set(chave, [c.longitude, c.latitude]);
+  });
+  const fora = l.os.length - os.length, km = completa ? r.km : null;
+  const resumo = `${os.length} parada(s)` + (completa ? ` · ${_mapaNum(km)} km` : ' · endereços localizados pela Cobli, horários estimados');
+  l.enviado = {
+    routeId: criada?.id || null, nome: l.nome, assinatura: l.assinatura,
+    paradas: os.length, fora, km, veiculo: !!l.vehicleId,
+    user: window._currentUser?.nome||'Sistema', uid: getUID()||'',
+  };
+  await setDoc(ref, {...l.enviado, enviadoEm: serverTimestamp()});
+  l.enviado.enviadoEm = { toDate: () => new Date() };
+  await logAudit(l.t.nome, 'edicao', `Rota enviada à Cobli: ${resumo}`, 'info', E.data);
+  return resumo;
+}
+
+window.enviarRotasCobli = async function(){
+  const E = _cobliEnvio; if(!E || E.enviando) return;
+  const hora = document.getElementById('cobli-hora').value || '08:00';
+  const min  = Math.min(240, Math.max(5, parseInt(document.getElementById('cobli-min').value,10) || 40));
+  const inicio = new Date(`${E.data}T${hora}:00`).getTime();
+  if(!Number.isFinite(inicio)){ toast('Horário de saída inválido.','warn'); return; }
+  const fila = E.linhas.filter(l=>l.marcado);
+  if(!fila.length) return;
+
+  E.enviando = true; _cobliRender();
+  let ok = 0;
+  for(const l of fila){
+    l.estado = 'enviando'; l.msg = ''; _cobliRender();
+    try{
+      l.msg = await _cobliEnviarLinha(l, E, inicio, min*60000);
+      l.estado = 'ok'; l.marcado = false; ok++;
+    }catch(e){
+      l.estado = 'erro'; l.msg = e.message;
+      console.error('Envio Cobli ('+l.nome+'):', e);
+    }
+    _cobliRender();
+  }
+  E.enviando = false; _cobliRender();
+  toast(ok === fila.length ? `${ok} rota(s) enviada(s) para a Cobli` : `${ok} de ${fila.length} rota(s) enviada(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
+};
 
 function subscribeTravas(data){
   // Travas do dia em tempo real
@@ -3764,7 +4023,7 @@ async function calcularKmRota(){
 }
 
 // Base: Av. Pedrosa de Moraes, 670 — coordenadas fixas (mais confiável)
-const BASE_COORDS=[-46.6853,-23.5629]; // [lng, lat] — Pinheiros, SP
+const BASE_COORDS=[-46.6908927,-23.5642093]; // [lng, lat] — a mesma posição da base nas rotas da Cobli
 const _geoCache=new Map(); // endereço → [lng, lat] (não geocodifica de novo na mesma sessão)
 const durRotaStr=durSec=>{
   const h=Math.floor(durSec/3600), m=Math.floor((durSec%3600)/60);
@@ -3780,68 +4039,69 @@ async function geocodeEndereco(addr){
       const reEnd = /\b(rua|r\.|av|avenida|al\b|alameda|est\.|estrada|tv\.|travessa|pça|praça|\d{3,})/i;
       const rua = partes.find(p=>reEnd.test(p)) || partes[0] || addr;
       const semCep = rua.replace(/CEP:?\s*[\d\-]+/gi,'').replace(/\s+/g,' ').trim();
-      const query = semCep + ', São Paulo, SP';
-      const url='https://api.openrouteservice.org/geocode/search?'+
-        new URLSearchParams({
-          api_key:ORS_API_KEY,
-          text:query,
-          size:1,
-          'boundary.country':'BR',
-          'focus.point.lon':'-46.6853',  // foco em SP para melhorar precisão
-          'focus.point.lat':'-23.5629',
-        });
-      const r=await fetch(url);
-      if(!r.ok) throw new Error('Geocoding HTTP '+r.status);
-      const d=await r.json();
-      let feat=d.features?.[0];
+      const foco={'focus.point.lon':'-46.6853','focus.point.lat':'-23.5629'}; // foco em SP para melhorar precisão
+      let feat=await _orsGeocode({text:semCep+', São Paulo, SP',...foco});
 
       // Fallback 1: tentar só com CEP se disponível
       if(!feat){
         const cepMatch=addr.match(/\b(\d{5}-?\d{3})\b/);
-        if(cepMatch){
-          const urlCep='https://api.openrouteservice.org/geocode/search?'+
-            new URLSearchParams({api_key:ORS_API_KEY,text:cepMatch[1]+', São Paulo, SP',size:1,'boundary.country':'BR'});
-          const rCep=await fetch(urlCep);
-          const dCep=await rCep.json();
-          feat=dCep.features?.[0];
-        }
+        if(cepMatch) feat=await _orsGeocode({text:cepMatch[1]+', São Paulo, SP'});
       }
 
       // Fallback 2: tentar só com bairro + SP
       if(!feat){
         const bairroMatch=addr.match(/—\s*([^—]+?)\s*(?:—|CEP|$)/i);
-        if(bairroMatch&&bairroMatch[1].length>3){
-          const urlB='https://api.openrouteservice.org/geocode/search?'+
-            new URLSearchParams({api_key:ORS_API_KEY,text:bairroMatch[1].trim()+', São Paulo, SP',size:1,'boundary.country':'BR','focus.point.lon':'-46.6853','focus.point.lat':'-23.5629'});
-          const rB=await fetch(urlB);
-          const dB=await rB.json();
-          feat=dB.features?.[0];
-        }
+        if(bairroMatch&&bairroMatch[1].length>3) feat=await _orsGeocode({text:bairroMatch[1].trim()+', São Paulo, SP',...foco});
       }
 
-      if(!feat) throw new Error('Endereço não encontrado: '+semCep);
+      if(!feat){ const e=new Error('Endereço não encontrado: '+semCep); e.naoEncontrado=true; throw e; }
       _geoCache.set(addr, feat.geometry.coordinates);
       return feat.geometry.coordinates; // [lng, lat]
 }
 
+// Uma busca de endereço no OpenRouteService, em ritmo controlado (o plano gratuito limita
+// buscas por minuto e por dia). Com a cota esgotada o serviço responde sem liberar a leitura
+// pelo navegador, e o fetch falha como erro de rede — por isso os dois casos têm a mesma mensagem.
+let _orsUltimaBusca=0, _orsSemServicoAte=0;
+const _orsErroServico=()=>{
+  const e=new Error('Serviço de localização de endereços indisponível ou com a cota do dia esgotada (OpenRouteService)');
+  e.semServico=true; return e;
+};
+async function _orsGeocode(params){
+  if(Date.now()<_orsSemServicoAte) throw _orsErroServico(); // acabou de falhar: não insiste a cada endereço
+  const url='https://api.openrouteservice.org/geocode/search?'+
+    new URLSearchParams({api_key:ORS_API_KEY,size:1,'boundary.country':'BR',...params});
+  for(let tentativa=0;;tentativa++){
+    const espera=_orsUltimaBusca+650-Date.now();
+    if(espera>0) await new Promise(r=>setTimeout(r,espera));
+    _orsUltimaBusca=Date.now();
+    const r=await fetch(url).catch(()=>null);
+    if(r?.ok) return (await r.json()).features?.[0]||null;
+    if((!r||r.status===429)&&tentativa<1){ await new Promise(res=>setTimeout(res,5000)); continue; }
+    if(!r||r.status===429||r.status===403){ _orsSemServicoAte=Date.now()+10*60000; throw _orsErroServico(); }
+    throw new Error('Geocoding HTTP '+r.status);
+  }
+}
+
 // ── Rota Base → OS1 → … → OSn → Base (romaneio e mapa da frota) ─────
 // tolerante: endereço não localizado fica fora da rota em vez de abortar o cálculo.
-// Devolve { km, durSec, pontos:[{os, coord:[lng,lat]}], falhas, linha:[[lng,lat],…] }
+// Devolve { km, durSec, pontos:[{os, coord:[lng,lat]}], falhas, linha:[[lng,lat],…], pernas:[seg,…] }
+// (pernas = duração em segundos de cada trecho, quando o serviço informa; pode vir vazio)
+// Usar só endereco puro (sem nome do cliente) + bairro + cep
+const enderecoOS = o => [o.endereco, o.bairro, o.cep ? 'CEP '+o.cep : ''].filter(Boolean).join(' — ');
 async function calcularRotaORS(os, {onProgresso, tolerante}={}){
     const pontos=[]; let falhas=0;
     for(let i=0;i<os.length;i++){
       onProgresso?.('Geocodificando '+(i+1)+'/'+os.length+'...');
-      // Usar só endereco puro (sem nome do cliente) + bairro + cep
       const o = os[i];
-      const endCompleto = [o.endereco, o.bairro, o.cep ? 'CEP '+o.cep : ''].filter(Boolean).join(' — ');
-      const novo=!_geoCache.has(endCompleto);
+      const endCompleto = enderecoOS(o);
       try{
         pontos.push({os:o, coord:await geocodeEndereco(endCompleto)});
       }catch(e){
-        if(!tolerante) throw e;
+        // só "endereço não encontrado" pode ser ignorado; falha do serviço interrompe o cálculo
+        if(!tolerante||!e.naoEncontrado) throw e;
         falhas++;
       }
-      if(novo&&i<os.length-1) await new Promise(r=>setTimeout(r,300)); // rate limit
     }
     if(!pontos.length) throw new Error('Nenhum endereço localizado');
     // Sai da base e volta para a base
@@ -3866,7 +4126,8 @@ async function calcularRotaORS(os, {onProgresso, tolerante}={}){
     const rota=data.features?.[0];
     const km=rota?.properties?.summary?.distance;
     if(!km&&km!==0) throw new Error('Distância não retornada pela API');
-    return {km, durSec:rota.properties.summary.duration||0, pontos, falhas, linha:rota.geometry?.coordinates||[]};
+    return {km, durSec:rota.properties.summary.duration||0, pontos, falhas, linha:rota.geometry?.coordinates||[],
+      pernas:(rota.properties.segments||[]).map(s=>s.duration||0)};
 }
 function doPrintRom(){
   const content=document.getElementById('rom-content').innerHTML;
