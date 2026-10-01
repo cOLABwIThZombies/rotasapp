@@ -1772,7 +1772,6 @@ async function _mapaUpdate(){
         .addTo(_mapaLeaflet)
         .bindPopup('');
     }
-    _mapaMarkers[id].setOpacity(semSinal ? .65 : 1);
     _mapaMarkers[id].getPopup().setContent(`
       <div style="font-family:DM Sans,sans-serif;min-width:160px">
         <div style="font-weight:700;font-size:13px;margin-bottom:4px">${nome}</div>
