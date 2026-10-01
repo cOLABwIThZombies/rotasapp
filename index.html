@@ -1634,8 +1634,10 @@ window.analisarRotaComIA = analisarRotaComIA;
 // Cobli: GET /herbie-1.1/dash/device → { devices: [{ vehicle:{license_plate,...}, driver, last_location:{...} }] }
 const COBLI_PROXY_URL = '/api/cobli'; // via servidor.js — chave protegida no Render
 const COBLI_ENDPOINT  = '/herbie-1.1/dash/device';
-// Última posição mais velha que isso = sem sinal (velocidade/ignição da Cobli já não valem)
-const MAPA_SINAL_MS   = 10*60*1000;
+// Até 10 min a posição é "ao vivo" (velocidade/ignição valem). Carro estacionado reporta
+// de tempos em tempos: até 6 h mostra "Parado há X"; depois disso, sem sinal.
+const MAPA_AO_VIVO_MS = 10*60*1000;
+const MAPA_SINAL_MS   = 6*60*60*1000;
 
 let _mapaLeaflet   = null;  // instância do mapa Leaflet
 let _mapaMarkers   = {};    // { techId: marker }
@@ -1656,22 +1658,18 @@ function _mapaGetTecCor(tec){
   return tec?.color || '#378ADD';
 }
 
-// ── Criar ícone SVG personalizado por técnico ──────────────────────────
-function _mapaIcone(tec, velocidade){
+// ── Ícone do veículo: carro visto de cima, girado na direção em que anda ──
+// (a frente do carro em /img/carro.png aponta para cima = norte = heading 0)
+function _mapaIcone(tec, velocidade, direcao){
   const cor   = _mapaGetTecCor(tec);
   const ini   = tec?.ini || '?';
   const parado = !velocidade || velocidade < 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
-    <path d="M18 2C10.3 2 4 8.3 4 16c0 9.5 14 26 14 26S32 25.5 32 16C32 8.3 25.7 2 18 2z"
-      fill="${cor}" stroke="white" stroke-width="2"/>
-    <circle cx="18" cy="16" r="9" fill="white" opacity=".92"/>
-    <text x="18" y="20" font-family="DM Sans,system-ui,sans-serif" font-size="9" font-weight="700"
-      fill="${cor}" text-anchor="middle">${ini}</text>
-    ${parado ? '' : `<circle cx="28" cy="6" r="5" fill="#1D9E75" stroke="white" stroke-width="1.5"/>
-    <text x="28" y="9.5" font-family="sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">▶</text>`}
-  </svg>`;
+  const html = `<div style="position:relative;width:52px;height:52px">
+    <img src="/img/carro.png" alt="" style="position:absolute;left:15px;top:2px;width:22px;height:48px;transform:rotate(${Math.round(direcao||0)}deg);filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))">
+    <div style="position:absolute;right:0;bottom:0;min-width:20px;height:20px;padding:0 3px;border-radius:10px;background:${cor};color:${tec?.tx||'#fff'};border:2px solid ${parado?'#fff':'#1D9E75'};display:flex;align-items:center;justify-content:center;font:700 9px DM Sans,system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.5)">${ini}</div>
+  </div>`;
   return L.divIcon({
-    html: svg, className: '', iconSize:[36,44], iconAnchor:[18,44], popupAnchor:[0,-44]
+    html, className: '', iconSize:[52,52], iconAnchor:[26,26], popupAnchor:[0,-26]
   });
 }
 
@@ -1683,10 +1681,18 @@ function _mapaInit(){
     zoom: 11,
     zoomControl: true
   });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Satélite (Esri) com nomes de ruas e bairros por cima; "Ruas" fica como alternativa
+  const esri = servico => `https://server.arcgisonline.com/ArcGIS/rest/services/${servico}/MapServer/tile/{z}/{y}/{x}`;
+  const satelite = L.layerGroup([
+    L.tileLayer(esri('World_Imagery'), { attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19 }),
+    L.tileLayer(esri('Reference/World_Transportation'), { maxZoom: 19 }),
+    L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 19 }),
+  ]).addTo(_mapaLeaflet);
+  const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19
-  }).addTo(_mapaLeaflet);
+  });
+  L.control.layers({ 'Satélite': satelite, 'Ruas': ruas }, null, { collapsed: false }).addTo(_mapaLeaflet);
 }
 
 // ── Buscar localização dos veículos via proxy Cobli ────────────────────
@@ -1743,13 +1749,14 @@ async function _mapaUpdate(){
     const tec   = S.tecnicos.find(t => _mapaPlaca(t.placa) === placa);
     const lat   = loc.latitude, lng = loc.longitude;
     const semSinal = idadeMs > MAPA_SINAL_MS;
-    const vel   = semSinal ? 0 : (loc.speed || 0); // km/h
-    const ligado= !semSinal && !!loc.ignition_on;
+    const aoVivo = idadeMs <= MAPA_AO_VIVO_MS;
+    const vel   = aoVivo ? (loc.speed || 0) : 0; // km/h
+    const ligado= aoVivo && !!loc.ignition_on;
     const nome  = tec?.nome || v.driver?.name || [v.vehicle.brand, v.vehicle.model].filter(Boolean).join(' ') || placa;
     const cor   = _mapaGetTecCor(tec);
     const id    = tec?.id || placa;
     const parado = vel < 2;
-    const estado = semSinal ? `Sem sinal há ${_mapaIdade(idadeMs)}` : (ligado?'Ligado':'Desligado');
+    const estado = semSinal ? `Sem sinal há ${_mapaIdade(idadeMs)}` : !aoVivo ? `Parado há ${_mapaIdade(idadeMs)}` : (ligado?'Ligado':'Desligado');
     const movimento = semSinal ? 'Sem sinal' : parado ? 'Parado' : `${Math.round(vel)} km/h`;
 
     if(!semSinal) online++;
@@ -1759,18 +1766,18 @@ async function _mapaUpdate(){
     // Marcador no mapa
     if(_mapaMarkers[id]){
       _mapaMarkers[id].setLatLng([lat, lng]);
-      _mapaMarkers[id].setIcon(_mapaIcone(tec, vel));
+      _mapaMarkers[id].setIcon(_mapaIcone(tec, vel, loc.heading));
     } else {
-      _mapaMarkers[id] = L.marker([lat, lng], { icon: _mapaIcone(tec, vel) })
+      _mapaMarkers[id] = L.marker([lat, lng], { icon: _mapaIcone(tec, vel, loc.heading) })
         .addTo(_mapaLeaflet)
         .bindPopup('');
     }
-    _mapaMarkers[id].setOpacity(semSinal ? .5 : 1);
+    _mapaMarkers[id].setOpacity(semSinal ? .65 : 1);
     _mapaMarkers[id].getPopup().setContent(`
       <div style="font-family:DM Sans,sans-serif;min-width:160px">
         <div style="font-weight:700;font-size:13px;margin-bottom:4px">${nome}</div>
         <div style="font-size:11px;color:#6b6960">🚗 ${placa}</div>
-        <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${semSinal ? estado : `${estado} · ${movimento}`}</div>
+        <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${aoVivo ? `${estado} · ${movimento}` : estado}</div>
         ${tec ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">📋 ${(ordensForDate(currentDate).filter(o=>o.techId===tec.id).length)} OS hoje</div>` : ''}
       </div>
     `);
