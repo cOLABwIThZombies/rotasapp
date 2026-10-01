@@ -42,9 +42,9 @@ function subirMock() {
       : 'Verificar fonte em campo.';
     res.json({ candidates: [{ content: { parts: [{ text: texto }] }, finishReason: 'STOP' }] });
   });
-  app.get('/herbie-1.1/devices', (req, res) => {
+  app.get('/herbie-1.1/dash/device', (req, res) => {
     chamadasMock.push({ api: 'cobli', chave: req.headers['cobli-api-key'] });
-    res.json({ results: [] });
+    res.json({ devices: [] });
   });
   return new Promise(r => { const s = app.listen(PORTA_MOCK, () => r(s)); });
 }
@@ -427,7 +427,7 @@ test('IA (Gemini): sem login é recusado; erro do Gemini chega legível ao usuá
   const err = await fetch(`http://127.0.0.1:${PORTA_SB}/api/ia`, { method: 'POST', headers: h, body: JSON.stringify({ prompt: 'FORCAR_ERRO' }) });
   assert.equal(err.status, 400);
   assert.match((await err.json()).error.message, /API key not valid/);
-  const cob = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli`, { method: 'POST', headers: h, body: JSON.stringify({ endpoint: '/herbie-1.1/devices' }) });
+  const cob = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli`, { method: 'POST', headers: h, body: JSON.stringify({ endpoint: '/herbie-1.1/dash/device' }) });
   assert.equal(cob.status, 200);
   assert.equal(chamadasMock.filter(x => x.api === 'cobli').at(-1).chave, 'chave-cobli-teste');
   const cobRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli`, { method: 'POST', headers: h, body: JSON.stringify({ endpoint: 'http://evil.com/x' }) });

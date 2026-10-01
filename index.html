@@ -728,7 +728,7 @@ button,select,input,textarea{font-family:inherit}
           <div id="mapa-loading" style="position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:500">
             <div class="big-spin"></div>
             <div style="font-size:13px;color:var(--tx3)">Carregando localização dos veículos...</div>
-            <div style="font-size:11px;color:var(--tx3)" id="mapa-loading-sub">Configure a chave Cobli no Worker para começar</div>
+            <div style="font-size:11px;color:var(--tx3)" id="mapa-loading-sub">Consultando a Cobli...</div>
           </div>
         </div>
       </div>
@@ -1631,14 +1631,25 @@ window.analisarRotaComIA = analisarRotaComIA;
 /* ════════════════════════════════════════════════════════
    MAPA DA FROTA — Integração Cobli + Leaflet
 ════════════════════════════════════════════════════════ */
-// A chave Cobli fica protegida no mesmo Cloudflare Worker do Gemini
-// O Worker precisa suportar o endpoint /cobli além do /gemini
+// Cobli: GET /herbie-1.1/dash/device → { devices: [{ vehicle:{license_plate,...}, driver, last_location:{...} }] }
 const COBLI_PROXY_URL = '/api/cobli'; // via servidor.js — chave protegida no Render
+const COBLI_ENDPOINT  = '/herbie-1.1/dash/device';
+// Última posição mais velha que isso = sem sinal (velocidade/ignição da Cobli já não valem)
+const MAPA_SINAL_MS   = 10*60*1000;
 
 let _mapaLeaflet   = null;  // instância do mapa Leaflet
 let _mapaMarkers   = {};    // { techId: marker }
 let _mapaInterval  = null;  // timer de atualização
 let _mapaAtivo     = false; // se a tela está visível
+let _mapaAjustado  = false; // zoom inicial já enquadrou a frota (não reenquadra a cada 30s)
+
+const _mapaPlaca = p => String(p||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function _mapaIdade(ms){
+  const min = Math.max(0, Math.floor(ms/60000));
+  if(min < 60) return `${min} min`;
+  const h = Math.floor(min/60);
+  return h < 48 ? `${h} h` : `${Math.floor(h/24)} d`;
+}
 
 // ── Cores dos marcadores = cores dos técnicos no kanban ────────────────
 function _mapaGetTecCor(tec){
@@ -1686,13 +1697,18 @@ async function _mapaFetch(){
     const resp = await fetch(COBLI_PROXY_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json', ...(await _authHeader())},
-      body: JSON.stringify({ endpoint: '/herbie-1.1/devices' })
+      body: JSON.stringify({ endpoint: COBLI_ENDPOINT })
     });
-    if(!resp.ok) throw new Error(`Cobli: HTTP ${resp.status}`);
+    if(!resp.ok){
+      const errData = await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message || `Cobli: HTTP ${resp.status}`);
+    }
     const data = await resp.json();
-    return data.results || data.data || data || [];
+    return Array.isArray(data.devices) ? data.devices : [];
   }catch(e){
     _mapaSetStatus('err', 'Erro: '+e.message);
+    const sub = document.getElementById('mapa-loading-sub');
+    if(sub) sub.textContent = 'Erro: '+e.message;
     return null;
   }finally{
     if(btn) btn.disabled = false;
@@ -1709,25 +1725,35 @@ async function _mapaUpdate(){
 
   // Cruzar veículos Cobli com técnicos do sistema pela placa
   const agora = new Date();
-  let ativos = 0;
+  let online = 0;
   const list = document.getElementById('mapa-tec-list');
   if(list) list.innerHTML = '';
   const bounds = [];
+  const vistos = new Set();
 
-  veiculos.forEach(v => {
-    const placa = (v.vehicle?.license_plate || v.license_plate || '').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const tec   = S.tecnicos.find(t => (t.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,'') === placa);
-    const lat   = v.last_location?.latitude  || v.latitude;
-    const lng   = v.last_location?.longitude || v.longitude;
-    const vel   = v.last_location?.speed     || v.speed || 0;
-    const ligado= v.last_location?.ignition  || v.ignition || false;
-    const nome  = tec?.nome || v.vehicle?.name || v.name || placa || 'Desconhecido';
+  // Só rastreadores com veículo associado e posição; os com sinal vêm primeiro
+  const frota = veiculos
+    .filter(v => _mapaPlaca(v.vehicle?.license_plate) && v.last_location?.latitude != null && v.last_location?.longitude != null)
+    .map(v => ({ v, idadeMs: agora.getTime() - (v.last_location.time_in_millis || (v.last_location.time||0)*1000) }))
+    .sort((a,b) => a.idadeMs - b.idadeMs);
+
+  frota.forEach(({v, idadeMs}) => {
+    const loc   = v.last_location;
+    const placa = _mapaPlaca(v.vehicle.license_plate);
+    const tec   = S.tecnicos.find(t => _mapaPlaca(t.placa) === placa);
+    const lat   = loc.latitude, lng = loc.longitude;
+    const semSinal = idadeMs > MAPA_SINAL_MS;
+    const vel   = semSinal ? 0 : (loc.speed || 0); // km/h
+    const ligado= !semSinal && !!loc.ignition_on;
+    const nome  = tec?.nome || v.driver?.name || [v.vehicle.brand, v.vehicle.model].filter(Boolean).join(' ') || placa;
     const cor   = _mapaGetTecCor(tec);
     const id    = tec?.id || placa;
     const parado = vel < 2;
+    const estado = semSinal ? `Sem sinal há ${_mapaIdade(idadeMs)}` : (ligado?'Ligado':'Desligado');
+    const movimento = semSinal ? 'Sem sinal' : parado ? 'Parado' : `${Math.round(vel)} km/h`;
 
-    if(!lat || !lng) return;
-    ativos++;
+    if(!semSinal) online++;
+    vistos.add(id);
     bounds.push([lat, lng]);
 
     // Marcador no mapa
@@ -1739,11 +1765,12 @@ async function _mapaUpdate(){
         .addTo(_mapaLeaflet)
         .bindPopup('');
     }
+    _mapaMarkers[id].setOpacity(semSinal ? .5 : 1);
     _mapaMarkers[id].getPopup().setContent(`
       <div style="font-family:DM Sans,sans-serif;min-width:160px">
         <div style="font-weight:700;font-size:13px;margin-bottom:4px">${nome}</div>
         <div style="font-size:11px;color:#6b6960">🚗 ${placa}</div>
-        <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${ligado?'Ligado':'Desligado'} · ${parado?'Parado':`${Math.round(vel)} km/h`}</div>
+        <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${semSinal ? estado : `${estado} · ${movimento}`}</div>
         ${tec ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">📋 ${(ordensForDate(currentDate).filter(o=>o.techId===tec.id).length)} OS hoje</div>` : ''}
       </div>
     `);
@@ -1751,14 +1778,14 @@ async function _mapaUpdate(){
     // Sidebar card
     if(list){
       const card = document.createElement('div');
-      card.className = 'mapa-tec-card';
+      card.className = 'mapa-tec-card'+(semSinal?' offline':'');
       card.innerHTML = `
         <div style="width:32px;height:32px;border-radius:50%;background:${cor};color:${tec?.tx||'#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${tec?.ini||placa.slice(0,2)}</div>
         <div class="mapa-tec-info">
           <div class="mapa-tec-nome">${nome}</div>
-          <div class="mapa-tec-det">${placa} · ${ligado?'Ligado':'Desligado'}</div>
+          <div class="mapa-tec-det">${placa} · ${estado}</div>
         </div>
-        <span class="mapa-vel-badge${parado?' parado':''}">${parado?'Parado':`${Math.round(vel)} km/h`}</span>`;
+        <span class="mapa-vel-badge${parado?' parado':''}">${movimento}</span>`;
       card.onclick = () => {
         _mapaLeaflet.setView([lat, lng], 15, {animate:true});
         _mapaMarkers[id].openPopup();
@@ -1769,11 +1796,20 @@ async function _mapaUpdate(){
     }
   });
 
-  if(bounds.length > 1) _mapaLeaflet.fitBounds(bounds, {padding:[40,40]});
-  else if(bounds.length === 1) _mapaLeaflet.setView(bounds[0], 14);
+  // Veículo que saiu da Cobli (ou perdeu a associação) some do mapa
+  Object.keys(_mapaMarkers).forEach(id => {
+    if(!vistos.has(id)){ _mapaMarkers[id].remove(); delete _mapaMarkers[id]; }
+  });
+  if(list && !frota.length) list.innerHTML = '<div style="padding:16px 8px;font-size:12px;color:var(--tx3);text-align:center">Nenhum veículo com rastreador associado na Cobli.</div>';
+
+  if(!_mapaAjustado && bounds.length){
+    if(bounds.length > 1) _mapaLeaflet.fitBounds(bounds, {padding:[40,40]});
+    else _mapaLeaflet.setView(bounds[0], 14);
+    _mapaAjustado = true;
+  }
 
   const hora = agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  _mapaSetStatus('ok', `${ativos} veículo(s) online`);
+  _mapaSetStatus(online ? 'ok' : 'warn', `${online} de ${frota.length} veículo(s) com sinal`);
   const att = document.getElementById('mapa-ultima-att');
   if(att) att.textContent = `Última att: ${hora}`;
 }
@@ -4387,7 +4423,7 @@ function renderVeiculos(){
 /* ═══════════════════════════════════════════════════════════
    USUÁRIOS & PERMISSÕES — apenas admin, sem SDK de criação
 ═══════════════════════════════════════════════════════════ */
-const ALL_PERMS={rotas:'Quadro de rotas',dashboard:'Dashboard',calendario:'Calendário',finalizado:'Hist. finalizado',auditoria:'Auditoria',relatorios:'Relatórios',tecnicos:'Técnicos',auxiliares:'Auxiliares',veiculos:'Veículos',usuarios:'Usuários',tipos:'Tipos de OS'};
+const ALL_PERMS={rotas:'Quadro de rotas',dashboard:'Dashboard',calendario:'Calendário',mapa:'Mapa da frota',finalizado:'Hist. finalizado',auditoria:'Auditoria',relatorios:'Relatórios',tecnicos:'Técnicos',auxiliares:'Auxiliares',veiculos:'Veículos',usuarios:'Usuários',tipos:'Tipos de OS'};
 function renderUsuarios(){
   const tbody=document.getElementById('user-body'); if(!tbody)return;
   tbody.innerHTML=S.usuarios.map(u=>{
@@ -4619,7 +4655,7 @@ function getDefaultTipos(){return[
   {id:'t14',label:'Cortesia',bg:'#EEEDFE',color:'#3C3489',ordem:14},
 ];}
 function getDefaultCargos(){
-  const ALL=Object.keys(ALL_PERMS||{rotas:1,dashboard:1,calendario:1,finalizado:1,auditoria:1,relatorios:1,tecnicos:1,auxiliares:1,veiculos:1,usuarios:1,tipos:1});
+  const ALL=Object.keys(ALL_PERMS||{rotas:1,dashboard:1,calendario:1,mapa:1,finalizado:1,auditoria:1,relatorios:1,tecnicos:1,auxiliares:1,veiculos:1,usuarios:1,tipos:1});
   return[
     {id:'c1',nome:'Administrador',perms:ALL},
     {id:'c2',nome:'Supervisor',perms:['rotas','dashboard','relatorios','finalizado','calendario','auditoria']},
