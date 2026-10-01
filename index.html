@@ -221,10 +221,27 @@ button,select,input,textarea{font-family:inherit}
 .rom-ia-panel{display:none;margin:12px auto;max-width:860px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px}
 .rom-ia-panel.on{display:block}
 /* Mapa */
-.mapa-tec-card{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .12s;margin-bottom:4px;border:1px solid transparent}
+.mapa-tec-card{padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .12s;margin-bottom:4px;border:1px solid transparent}
 .mapa-tec-card:hover{background:var(--bg)}
-.mapa-tec-card.ativo{background:var(--ow-bg);border-color:var(--ow)}
-.mapa-tec-card.offline{opacity:.5}
+.mapa-tec-card.ativo{background:var(--surf);border-color:var(--ow);cursor:default}
+.mapa-tec-card.offline:not(.ativo){opacity:.5}
+.mapa-tec-top{display:flex;align-items:center;gap:8px;cursor:pointer}
+.mapa-seta{width:10px;height:10px;flex-shrink:0;color:var(--tx3);transition:transform .15s}
+.mapa-tec-card.ativo .mapa-seta{transform:rotate(180deg)}
+.mapa-comb{display:flex;align-items:center;gap:5px;margin:6px 0 0 40px;font-size:10.5px;color:var(--tx2);white-space:nowrap}
+.mapa-comb b{font-family:'DM Mono',monospace;font-weight:500;color:var(--tx)}
+.mapa-comb svg{width:13px;height:13px;flex-shrink:0}
+.mapa-det-wrap{margin-top:8px;padding-top:2px;border-top:1px solid var(--brd)}
+.mapa-det-sec{font-size:9.5px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin:9px 0 4px;display:flex;align-items:center;gap:6px}
+.mapa-det-sec a{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ow);cursor:pointer;text-decoration:underline}
+.mapa-det-l{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;color:var(--tx2)}
+.mapa-det-l b{font-weight:600;color:var(--tx);text-align:right}
+.mapa-det-nota{font-size:10px;color:var(--tx3);line-height:1.4;margin-top:3px}
+.mapa-barra{height:6px;background:var(--surf2);border-radius:3px;overflow:hidden;margin:5px 0 3px}
+.mapa-barra div{height:100%;border-radius:3px;transition:width .4s}
+.mapa-parada{width:20px;height:20px;border-radius:50%;background:#fff;color:#1a1917;border:2px solid #1d6fb5;display:flex;align-items:center;justify-content:center;font:700 10px DM Sans,system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.mapa-parada.feita{background:#0e7c5a;border-color:#fff;color:#fff}
+.mapa-parada.pend{background:#b91c1c;border-color:#fff;color:#fff}
 .mapa-tec-info{flex:1;min-width:0}
 .mapa-tec-nome{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mapa-tec-det{font-size:10.5px;color:var(--tx3);margin-top:1px}
@@ -718,7 +735,7 @@ button,select,input,textarea{font-family:inherit}
         <span id="mapa-ultima-att" style="font-size:11px;color:var(--tx3)"></span>
       </div>
       <div style="display:flex;flex:1;overflow:hidden;min-height:0">
-        <div id="mapa-sidebar" style="width:260px;flex-shrink:0;border-right:1px solid var(--brd);overflow-y:auto;background:var(--surf);display:flex;flex-direction:column">
+        <div id="mapa-sidebar" style="width:300px;flex-shrink:0;border-right:1px solid var(--brd);overflow-y:auto;background:var(--surf);display:flex;flex-direction:column">
           <div style="padding:10px 12px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--brd)">Técnicos</div>
           <div id="mapa-tec-list" style="flex:1;overflow-y:auto;padding:8px"></div>
           <div style="padding:10px 12px;border-top:1px solid var(--brd);font-size:10px;color:var(--tx3)">Powered by <b>Cobli</b> · Atualiza a cada 30s</div>
@@ -1644,6 +1661,17 @@ let _mapaMarkers   = {};    // { techId: marker }
 let _mapaInterval  = null;  // timer de atualização
 let _mapaAtivo     = false; // se a tela está visível
 let _mapaAjustado  = false; // zoom inicial já enquadrou a frota (não reenquadra a cada 30s)
+let _mapaFrota     = [];    // veículos já cruzados com os técnicos, prontos para desenhar
+let _mapaExpandido = null;  // id do card aberto na lista
+let _mapaCustos    = null;  // { vehicleId: {kmHoje, custoHoje, kmMes, custoMes} } — Cobli costs/fuel
+let _mapaCustosEm  = 0;
+const MAPA_CUSTOS_MS = 5*60*1000; // consumo do dia/mês muda devagar: relê a cada 5 min
+const _mapaRotas   = {};    // id → rota planejada do dia { assinatura, estado, km, durSec, pontos, falhas, linha, erro }
+let _mapaRotaCamada = null; // desenho da rota planejada do card aberto
+
+const _mapaNum = (v, casas=1) => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:casas,maximumFractionDigits:casas});
+const _mapaBRL = v => 'R$ '+_mapaNum(v, 2);
+const MAPA_COMBUSTIVEIS = {gas:'Gasolina',gasoline:'Gasolina',ethanol:'Etanol',alcohol:'Etanol',diesel:'Diesel',flex:'Flex',gnv:'GNV',cng:'GNV',electric:'Elétrico'};
 
 const _mapaPlaca = p => String(p||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 function _mapaIdade(ms){
@@ -1695,21 +1723,222 @@ function _mapaInit(){
   L.control.layers({ 'Satélite': satelite, 'Ruas': ruas }, null, { collapsed: false }).addTo(_mapaLeaflet);
 }
 
+// ── Chamada à Cobli via proxy do servidor ──────────────────────────────
+async function _mapaCobli(endpoint){
+  const resp = await fetch(COBLI_PROXY_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', ...(await _authHeader())},
+    body: JSON.stringify({ endpoint })
+  });
+  if(!resp.ok){
+    const errData = await resp.json().catch(()=>({}));
+    throw new Error(errData.error?.message || `Cobli: HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+// ── Km rodados e custo de combustível por veículo (hoje e no mês) ──────
+// A Cobli devolve { vehicleId: [{begin_day, distance_driven_in_meters, cost}] }, um item por dia.
+// Os rastreadores desta frota não leem o tanque (dados CAN vazios): o que existe é o gasto estimado.
+async function _mapaFetchCustos(){
+  if(_mapaCustos && Date.now() - _mapaCustosEm < MAPA_CUSTOS_MS) return;
+  try{
+    const agora = new Date();
+    const iniMes  = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
+    const iniHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
+    const data = await _mapaCobli(`/herbie-1.1/costs/fuel?begin=${iniMes}&end=${agora.getTime()}&tz=America/Sao_Paulo`);
+    const custos = {};
+    for(const [vid, dias] of Object.entries(data||{})){
+      if(!Array.isArray(dias)) continue;
+      const c = custos[vid] = {kmHoje:0, custoHoje:0, kmMes:0, custoMes:0};
+      for(const d of dias){
+        const km = (d.distance_driven_in_meters||0)/1000, custo = d.cost||0;
+        c.kmMes += km; c.custoMes += custo;
+        if(d.begin_day >= iniHoje){ c.kmHoje += km; c.custoHoje += custo; }
+      }
+    }
+    _mapaCustos = custos; _mapaCustosEm = Date.now();
+  }catch(e){ console.warn('Cobli (combustível):', e); }
+}
+
+// ── Combustível de um veículo: gasto de hoje/mês e consumo usado nas previsões ──
+function _mapaCombustivel(v){
+  const veic = v.vehicle, c = _mapaCustos?.[veic.vehicle_id || veic.id];
+  const preco  = Number(veic.fuel_price) || 0;        // R$/L cadastrado na Cobli
+  const kmlCad = Number(veic.fuel_consumption) || 0;  // km/l cadastrado na Cobli
+  const litros = (km, custo) => preco ? custo/preco : (kmlCad ? km/kmlCad : 0);
+  const kmHoje = c?.kmHoje||0, custoHoje = c?.custoHoje||0, litrosHoje = litros(kmHoje, custoHoje);
+  // Consumo real de hoje só vale com alguns km rodados; senão usa o cadastrado
+  const kmlHoje = kmHoje >= 5 && litrosHoje > 0 ? kmHoje/litrosHoje : 0;
+  return {
+    temDados: !!_mapaCustos, preco, kmlCad, kmlHoje, kml: kmlHoje || kmlCad,
+    kmHoje, custoHoje, litrosHoje,
+    kmMes: c?.kmMes||0, custoMes: c?.custoMes||0, litrosMes: litros(c?.kmMes||0, c?.custoMes||0),
+    tipo: MAPA_COMBUSTIVEIS[String(veic.fuel_type||'').toLowerCase()] || veic.fuel_type || '',
+    consumoPadrao: !!veic.using_default_consumption,
+  };
+}
+
+// ── Bomba de combustível: enche conforme o gasto do dia em relação à rota prevista ──
+function _mapaBomba(pct, cor){
+  const h = Math.round(Math.max(0, Math.min(1, pct||0)) * 9);
+  return `<svg viewBox="0 0 14 14" fill="none" stroke="${cor}" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+    ${h ? `<rect x="2.6" y="${12.4-h}" width="5.8" height="${h}" fill="${cor}" stroke="none" opacity=".45"/>` : ''}
+    <rect x="2" y="1.5" width="7" height="11.5" rx="1"/><path d="M3.8 3.6h3.4v2.4H3.8z"/>
+    <path d="M9 5.5h1.3c.6 0 1 .4 1 1v3.2a.9.9 0 0 0 1.8 0V5.2L11.4 3.4"/><path d="M1.2 13h8.6"/>
+  </svg>`;
+}
+
+// ── Rota planejada do dia (OS do técnico, na ordem do quadro) ──────────
+function _mapaOsDoTec(tec){
+  if(!tec) return [];
+  return ordensForDate(TODAY_STR).filter(o=>o.techId===tec.id).sort((a,b)=>(a.posicao||0)-(b.posicao||0));
+}
+async function _mapaCalcRota(item, forcar){
+  const os = _mapaOsDoTec(item.tec).filter(o=>o.endereco&&o.endereco.trim());
+  const assinatura = os.map(o=>[o.id,o.endereco,o.bairro,o.cep].join('|')).join('\n');
+  const atual = _mapaRotas[item.id];
+  if(!forcar && atual && atual.assinatura === assinatura && atual.estado !== 'erro') return;
+  if(!os.length){ _mapaRotas[item.id] = {assinatura, estado:'vazio'}; _mapaRenderLista(); _mapaDesenharRota(); return; }
+  const rota = _mapaRotas[item.id] = {assinatura, estado:'calculando', progresso:'Calculando rota...'};
+  _mapaRenderLista();
+  try{
+    const r = await calcularRotaORS(os, {tolerante:true, onProgresso:t=>{
+      rota.progresso = t;
+      const el = document.getElementById('mapa-rota-prog'); if(el) el.textContent = t;
+    }});
+    Object.assign(rota, r, {estado:'ok'});
+  }catch(e){
+    Object.assign(rota, {estado:'erro', erro:e.message});
+  }
+  if(_mapaRotas[item.id] !== rota) return; // as OS mudaram no meio do cálculo: vale o mais novo
+  _mapaRenderLista(); _mapaDesenharRota();
+}
+window.mapaRecalcularRota = function(){
+  const item = _mapaFrota.find(x=>x.id===_mapaExpandido);
+  if(item) _mapaCalcRota(item, true);
+};
+
+// Desenha no mapa a rota planejada do card aberto, com as paradas numeradas
+function _mapaDesenharRota(){
+  if(_mapaRotaCamada){ _mapaRotaCamada.remove(); _mapaRotaCamada = null; }
+  const rota = _mapaRotas[_mapaExpandido];
+  if(!_mapaLeaflet || !rota || rota.estado !== 'ok') return;
+  const camadas = [
+    L.polyline(rota.linha.map(([lng,lat])=>[lat,lng]), {color:'#fff', weight:7, opacity:.85}),
+    L.polyline(rota.linha.map(([lng,lat])=>[lat,lng]), {color:'#1d6fb5', weight:4, opacity:1}),
+    ...rota.pontos.map((p,i)=>{
+      const status = (ordensForDate(TODAY_STR).find(o=>o.id===p.os.id) || p.os).status; // status atual da OS
+      const st = status==='finalizado' ? ' feita' : status==='pendente' ? ' pend' : '';
+      return L.marker([p.coord[1], p.coord[0]], {
+        icon: L.divIcon({html:`<div class="mapa-parada${st}">${i+1}</div>`, className:'', iconSize:[20,20], iconAnchor:[10,10]}),
+        zIndexOffset: -500,
+      }).bindTooltip(`${i+1}. OS #${p.os.os} — ${p.os.bairro||p.os.endereco||''}`);
+    }),
+  ];
+  _mapaRotaCamada = L.layerGroup(camadas).addTo(_mapaLeaflet);
+}
+
+// Abre/fecha o card: centraliza o veículo, calcula e desenha a rota do dia
+window.mapaAbrirCard = function(id){
+  const item = _mapaFrota.find(x=>x.id===id); if(!item) return;
+  _mapaExpandido = _mapaExpandido === id ? null : id;
+  _mapaRenderLista(); _mapaDesenharRota();
+  if(!_mapaExpandido) return;
+  _mapaLeaflet.setView([item.lat, item.lng], 15, {animate:true});
+  _mapaMarkers[id]?.openPopup();
+  _mapaCalcRota(item);
+};
+
+// ── Lista lateral: resumo + detalhes do card aberto ────────────────────
+function _mapaDetalhes(item){
+  const {v, tec, comb} = item, veic = v.vehicle, loc = v.last_location;
+  const linha = (k, val) => `<div class="mapa-det-l"><span>${k}</span><b>${val}</b></div>`;
+  const os = _mapaOsDoTec(tec), feitas = os.filter(o=>o.status==='finalizado').length;
+  const rota = _mapaRotas[item.id];
+  const prever = km => comb.kml ? ` · ${_mapaNum(km/comb.kml)} L${comb.preco ? ' · '+_mapaBRL(km/comb.kml*comb.preco) : ''}` : '';
+
+  let rotaHtml;
+  if(!tec) rotaHtml = '<div class="mapa-det-nota">Veículo sem técnico cadastrado com esta placa.</div>';
+  else if(!rota || rota.estado==='calculando') rotaHtml = `<div class="ia-loading" style="color:var(--tx2);font-size:11px;padding:3px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span><span id="mapa-rota-prog">${rota?.progresso||'Calculando rota...'}</span></div>`;
+  else if(rota.estado==='vazio') rotaHtml = `<div class="mapa-det-nota">${os.length ? 'Nenhuma OS de hoje tem endereço preenchido.' : 'Nenhuma OS para hoje.'}</div>`;
+  else if(rota.estado==='erro') rotaHtml = `<div class="mapa-det-nota" style="color:var(--err)">Não foi possível calcular: ${rota.erro}</div>`;
+  else {
+    const pct = rota.km ? comb.kmHoje/rota.km : 0, falta = rota.km - comb.kmHoje;
+    const fora = [
+      rota.falhas ? `${rota.falhas} endereço(s) não localizado(s)` : '',
+      os.length - rota.pontos.length - rota.falhas > 0 ? `${os.length - rota.pontos.length - rota.falhas} OS sem endereço` : '',
+    ].filter(Boolean).join(' e ');
+    rotaHtml = linha('Distância prevista', `${_mapaNum(rota.km)} km · ~${durRotaStr(rota.durSec)}`)
+      + (comb.kml ? linha('Combustível previsto', `${_mapaNum(rota.km/comb.kml)} L${comb.preco ? ' · '+_mapaBRL(rota.km/comb.kml*comb.preco) : ''}`) : '')
+      + `<div class="mapa-barra"><div style="width:${Math.min(100, Math.round(pct*100))}%;background:${pct>1?'var(--warn)':'var(--ok)'}"></div></div>`
+      + linha('Rodado hoje', `${_mapaNum(comb.kmHoje)} de ${_mapaNum(rota.km)} km (${Math.round(pct*100)}%)`)
+      + (falta >= 0
+          ? linha('Falta rodar', `${_mapaNum(falta)} km${prever(falta)}`)
+          : linha('Acima do previsto', `<span style="color:var(--warn-tx)">+${_mapaNum(-falta)} km${prever(-falta)}</span>`))
+      + `<div class="mapa-det-nota">Base → ${rota.pontos.length} parada(s) → base, na ordem do quadro${comb.kml ? `, a ${_mapaNum(comb.kml)} km/l` : ''}.${fora ? ` <span style="color:var(--warn-tx)">Ficaram de fora: ${fora}.</span>` : ''}</div>`;
+  }
+
+  return `<div class="mapa-det-wrap" onclick="event.stopPropagation()">
+    <div class="mapa-det-sec">Combustível hoje</div>
+    ${!comb.temDados ? '<div class="mapa-det-nota">Consumo indisponível na Cobli no momento.</div>' :
+      linha('Rodado', `${_mapaNum(comb.kmHoje)} km`)
+      + linha('Gasto estimado', `${_mapaNum(comb.litrosHoje)} L · ${_mapaBRL(comb.custoHoje)}`)
+      + linha('Consumo', comb.kmlHoje ? `${_mapaNum(comb.kmlHoje)} km/l` : '—')
+      + linha('Cadastrado na Cobli', `${comb.kmlCad ? _mapaNum(comb.kmlCad)+' km/l' : '—'}${comb.consumoPadrao ? ' (padrão)' : ''}`)
+      + linha('Preço do litro', `${comb.preco ? _mapaBRL(comb.preco) : '—'}${comb.tipo ? ' · '+comb.tipo : ''}`)}
+    <div class="mapa-det-sec">Rota de hoje${tec ? ` · ${feitas}/${os.length} OS` : ''}${rota && (rota.estado==='ok'||rota.estado==='erro') ? '<a onclick="mapaRecalcularRota()">Recalcular</a>' : ''}</div>
+    ${rotaHtml}
+    ${comb.temDados ? `<div class="mapa-det-sec">No mês</div>
+      ${linha('Rodado', `${_mapaNum(comb.kmMes)} km`)}
+      ${linha('Combustível', `${_mapaNum(comb.litrosMes)} L · ${_mapaBRL(comb.custoMes)}`)}` : ''}
+    <div class="mapa-det-sec">Veículo</div>
+    ${linha('Modelo', [veic.brand, veic.model].filter(Boolean).join(' ') || '—')}
+    ${linha('Motorista (Cobli)', v.driver?.name || '—')}
+    ${linha('Situação', item.aoVivo ? `${item.estado} · ${item.movimento}` : item.estado)}
+    ${linha('Última posição', new Date(loc.time_in_millis || (loc.time||0)*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}
+    ${veic.speed_limit_in_kmh ? linha('Limite de velocidade', `${veic.speed_limit_in_kmh} km/h`) : ''}
+    <div class="mapa-det-nota">O rastreador não informa o nível do tanque; litros e custo são estimativas da Cobli pelos km rodados.</div>
+  </div>`;
+}
+
+function _mapaRenderLista(){
+  const list = document.getElementById('mapa-tec-list'); if(!list) return;
+  if(!_mapaFrota.length){
+    list.innerHTML = '<div style="padding:16px 8px;font-size:12px;color:var(--tx3);text-align:center">Nenhum veículo com rastreador associado na Cobli.</div>';
+    return;
+  }
+  list.innerHTML = _mapaFrota.map(item => {
+    const {id, tec, placa, comb} = item, aberto = id === _mapaExpandido;
+    const rota = _mapaRotas[id], previsto = rota?.estado==='ok' && rota.km ? rota.km : 0;
+    // Bomba: cinza sem consumo; enche conforme rodado/previsto; âmbar quando passa do previsto
+    const pct = previsto ? comb.kmHoje/previsto : (comb.kmHoje ? 1 : 0);
+    const corBomba = !comb.kmHoje ? '#9e9d96' : previsto && pct > 1 ? '#c47c0a' : '#0e7c5a';
+    const resumo = !comb.temDados ? '<span>consumo indisponível</span>'
+      : !comb.kmHoje ? '<span>sem consumo hoje</span>'
+      : `<b>${_mapaNum(comb.litrosHoje)} L</b><span>·</span><b>${_mapaBRL(comb.custoHoje)}</b><span>· ${_mapaNum(comb.kmHoje)} km${previsto ? ` de ${_mapaNum(previsto)}` : ''}</span>`;
+    return `<div class="mapa-tec-card${item.semSinal?' offline':''}${aberto?' ativo':''}">
+      <div class="mapa-tec-top" onclick="mapaAbrirCard('${id}')" title="${aberto?'Recolher':'Ver detalhes'}">
+        <div style="width:32px;height:32px;border-radius:50%;background:${item.cor};color:${tec?.tx||'#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${tec?.ini||placa.slice(0,2)}</div>
+        <div class="mapa-tec-info">
+          <div class="mapa-tec-nome">${item.nome}</div>
+          <div class="mapa-tec-det">${placa} · ${item.estado}</div>
+        </div>
+        <span class="mapa-vel-badge${item.parado?' parado':''}">${item.movimento}</span>
+        <svg class="mapa-seta" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5l3 3 3-3"/></svg>
+      </div>
+      <div class="mapa-comb" onclick="mapaAbrirCard('${id}')">${_mapaBomba(pct, corBomba)}${resumo}</div>
+      ${aberto ? _mapaDetalhes(item) : ''}
+    </div>`;
+  }).join('');
+}
+
 // ── Buscar localização dos veículos via proxy Cobli ────────────────────
 async function _mapaFetch(){
   const btn = document.getElementById('mapa-refresh-btn');
   if(btn) btn.disabled = true;
   try{
-    const resp = await fetch(COBLI_PROXY_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', ...(await _authHeader())},
-      body: JSON.stringify({ endpoint: COBLI_ENDPOINT })
-    });
-    if(!resp.ok){
-      const errData = await resp.json().catch(()=>({}));
-      throw new Error(errData.error?.message || `Cobli: HTTP ${resp.status}`);
-    }
-    const data = await resp.json();
+    const data = await _mapaCobli(COBLI_ENDPOINT);
     return Array.isArray(data.devices) ? data.devices : [];
   }catch(e){
     _mapaSetStatus('err', 'Erro: '+e.message);
@@ -1723,7 +1952,7 @@ async function _mapaFetch(){
 
 // ── Atualizar marcadores e sidebar ─────────────────────────────────────
 async function _mapaUpdate(){
-  const veiculos = await _mapaFetch();
+  const [veiculos] = await Promise.all([_mapaFetch(), _mapaFetchCustos()]);
   if(!veiculos) return;
 
   const loading = document.getElementById('mapa-loading');
@@ -1732,8 +1961,6 @@ async function _mapaUpdate(){
   // Cruzar veículos Cobli com técnicos do sistema pela placa
   const agora = new Date();
   let online = 0;
-  const list = document.getElementById('mapa-tec-list');
-  if(list) list.innerHTML = '';
   const bounds = [];
   const vistos = new Set();
 
@@ -1743,10 +1970,12 @@ async function _mapaUpdate(){
     .map(v => ({ v, idadeMs: agora.getTime() - (v.last_location.time_in_millis || (v.last_location.time||0)*1000) }))
     .sort((a,b) => a.idadeMs - b.idadeMs);
 
-  frota.forEach(({v, idadeMs}) => {
+  _mapaFrota = frota.map(({v, idadeMs}) => {
     const loc   = v.last_location;
     const placa = _mapaPlaca(v.vehicle.license_plate);
-    const tec   = S.tecnicos.find(t => _mapaPlaca(t.placa) === placa);
+    // A mesma placa pode estar num técnico inativo e no ativo que herdou o carro: vale o ativo
+    const tec   = S.tecnicos.find(t => t.ativo !== false && _mapaPlaca(t.placa) === placa)
+               || S.tecnicos.find(t => _mapaPlaca(t.placa) === placa);
     const lat   = loc.latitude, lng = loc.longitude;
     const semSinal = idadeMs > MAPA_SINAL_MS;
     const aoVivo = idadeMs <= MAPA_AO_VIVO_MS;
@@ -1758,6 +1987,7 @@ async function _mapaUpdate(){
     const parado = vel < 2;
     const estado = semSinal ? `Sem sinal há ${_mapaIdade(idadeMs)}` : !aoVivo ? `Parado há ${_mapaIdade(idadeMs)}` : (ligado?'Ligado':'Desligado');
     const movimento = semSinal ? 'Sem sinal' : parado ? 'Parado' : `${Math.round(vel)} km/h`;
+    const comb = _mapaCombustivel(v);
 
     if(!semSinal) online++;
     vistos.add(id);
@@ -1777,36 +2007,24 @@ async function _mapaUpdate(){
         <div style="font-weight:700;font-size:13px;margin-bottom:4px">${nome}</div>
         <div style="font-size:11px;color:#6b6960">🚗 ${placa}</div>
         <div style="font-size:11px;color:#6b6960;margin-top:2px">⚡ ${aoVivo ? `${estado} · ${movimento}` : estado}</div>
-        ${tec ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">📋 ${(ordensForDate(currentDate).filter(o=>o.techId===tec.id).length)} OS hoje</div>` : ''}
+        ${tec ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">📋 ${_mapaOsDoTec(tec).length} OS hoje</div>` : ''}
+        ${comb.kmHoje ? `<div style="font-size:11px;color:#6b6960;margin-top:2px">⛽ ${_mapaNum(comb.litrosHoje)} L · ${_mapaBRL(comb.custoHoje)} · ${_mapaNum(comb.kmHoje)} km hoje</div>` : ''}
       </div>
     `);
 
-    // Sidebar card
-    if(list){
-      const card = document.createElement('div');
-      card.className = 'mapa-tec-card'+(semSinal?' offline':'');
-      card.innerHTML = `
-        <div style="width:32px;height:32px;border-radius:50%;background:${cor};color:${tec?.tx||'#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${tec?.ini||placa.slice(0,2)}</div>
-        <div class="mapa-tec-info">
-          <div class="mapa-tec-nome">${nome}</div>
-          <div class="mapa-tec-det">${placa} · ${estado}</div>
-        </div>
-        <span class="mapa-vel-badge${parado?' parado':''}">${movimento}</span>`;
-      card.onclick = () => {
-        _mapaLeaflet.setView([lat, lng], 15, {animate:true});
-        _mapaMarkers[id].openPopup();
-        document.querySelectorAll('.mapa-tec-card').forEach(c=>c.classList.remove('ativo'));
-        card.classList.add('ativo');
-      };
-      list.appendChild(card);
-    }
+    return {id, v, tec, placa, lat, lng, idadeMs, semSinal, aoVivo, parado, nome, cor, estado, movimento, comb};
   });
 
   // Veículo que saiu da Cobli (ou perdeu a associação) some do mapa
   Object.keys(_mapaMarkers).forEach(id => {
     if(!vistos.has(id)){ _mapaMarkers[id].remove(); delete _mapaMarkers[id]; }
   });
-  if(list && !frota.length) list.innerHTML = '<div style="padding:16px 8px;font-size:12px;color:var(--tx3);text-align:center">Nenhum veículo com rastreador associado na Cobli.</div>';
+
+  // Lista lateral; se o card aberto sumiu, fecha; se as OS dele mudaram, refaz a rota
+  const aberto = _mapaFrota.find(x => x.id === _mapaExpandido);
+  if(!aberto && _mapaExpandido){ _mapaExpandido = null; _mapaDesenharRota(); }
+  _mapaRenderLista();
+  if(aberto){ _mapaDesenharRota(); _mapaCalcRota(aberto); }
 
   if(!_mapaAjustado && bounds.length){
     if(bounds.length > 1) _mapaLeaflet.fitBounds(bounds, {padding:[40,40]});
@@ -3518,8 +3736,44 @@ async function calcularKmRota(){
   btnTxt.textContent='Calculando...';
 
   try{
-    // ── Passo 1: Geocoding dos endereços das OS ───────────────────────
-    const geocode=async(addr)=>{
+    const {km,durSec}=await calcularRotaORS(os,{onProgresso:t=>{btnTxt.textContent=t;}});
+
+    const kmArredondado=Math.ceil(km); // arredondar para cima por segurança
+    const durStr=durRotaStr(durSec);
+
+    // ── Atualizar romaneio ────────────────────────────────────────────
+    const romContent=document.getElementById('rom-content');
+    if(romContent){
+      romContent.innerHTML=romContent.innerHTML
+        .replace(/____ km/g, kmArredondado+' km')
+        .replace(/____ h/g, durStr);
+    }
+
+    btnTxt.textContent='✓ '+kmArredondado+' km calculados';
+    btn.style.background='var(--ok-bg)';
+    btn.style.borderColor='var(--ok)';
+    btn.style.color='var(--ok-tx)';
+    toast('Rota: '+kmArredondado+' km · ~'+durStr+' · '+os.length+' parada(s)','ok');
+
+  }catch(e){
+    btnTxt.textContent='Erro — tentar novamente';
+    btn.disabled=false; btn.style.opacity='1';
+    toast('Erro ao calcular: '+e.message,'err');
+    console.error('ORS error:',e);
+  }
+}
+
+// Base: Av. Pedrosa de Moraes, 670 — coordenadas fixas (mais confiável)
+const BASE_COORDS=[-46.6853,-23.5629]; // [lng, lat] — Pinheiros, SP
+const _geoCache=new Map(); // endereço → [lng, lat] (não geocodifica de novo na mesma sessão)
+const durRotaStr=durSec=>{
+  const h=Math.floor(durSec/3600), m=Math.floor((durSec%3600)/60);
+  return h>0?`${h}h${String(m).padStart(2,'0')}min`:`${m}min`;
+};
+
+// ── Geocoding de um endereço de OS ──────────────────────────────────
+async function geocodeEndereco(addr){
+      if(_geoCache.has(addr)) return _geoCache.get(addr);
       // addr = "Rua X, 123 — Bairro — CEP: 00000" (sem nome do cliente)
       // Pegar só a parte da rua, ignorar bairro e CEP (a API resolve melhor assim)
       const partes = addr.split('—').map(p=>p.trim()).filter(p=>p.length>2);
@@ -3566,30 +3820,35 @@ async function calcularKmRota(){
       }
 
       if(!feat) throw new Error('Endereço não encontrado: '+semCep);
+      _geoCache.set(addr, feat.geometry.coordinates);
       return feat.geometry.coordinates; // [lng, lat]
-    };
+}
 
-    // Base: Av. Pedrosa de Moraes, 670 — coordenadas fixas (mais confiável)
-    const BASE_COORDS=[-46.6853,-23.5629]; // [lng, lat] — Pinheiros, SP
-
-    btnTxt.textContent='Geocodificando '+os.length+' endereço(s)...';
-
-    const coords=[BASE_COORDS];
+// ── Rota Base → OS1 → … → OSn → Base (romaneio e mapa da frota) ─────
+// tolerante: endereço não localizado fica fora da rota em vez de abortar o cálculo.
+// Devolve { km, durSec, pontos:[{os, coord:[lng,lat]}], falhas, linha:[[lng,lat],…] }
+async function calcularRotaORS(os, {onProgresso, tolerante}={}){
+    const pontos=[]; let falhas=0;
     for(let i=0;i<os.length;i++){
-      btnTxt.textContent='Geocodificando '+(i+1)+'/'+os.length+'...';
+      onProgresso?.('Geocodificando '+(i+1)+'/'+os.length+'...');
       // Usar só endereco puro (sem nome do cliente) + bairro + cep
       const o = os[i];
       const endCompleto = [o.endereco, o.bairro, o.cep ? 'CEP '+o.cep : ''].filter(Boolean).join(' — ');
-      const coord=await geocode(endCompleto);
-      coords.push(coord);
-      if(i<os.length-1) await new Promise(r=>setTimeout(r,300)); // rate limit
+      const novo=!_geoCache.has(endCompleto);
+      try{
+        pontos.push({os:o, coord:await geocodeEndereco(endCompleto)});
+      }catch(e){
+        if(!tolerante) throw e;
+        falhas++;
+      }
+      if(novo&&i<os.length-1) await new Promise(r=>setTimeout(r,300)); // rate limit
     }
-    // Volta para a base
-    coords.push(BASE_COORDS);
+    if(!pontos.length) throw new Error('Nenhum endereço localizado');
+    // Sai da base e volta para a base
+    const coords=[BASE_COORDS,...pontos.map(p=>p.coord),BASE_COORDS];
 
-    // ── Passo 2: Directions API ───────────────────────────────────────
-    btnTxt.textContent='Calculando rota...';
-    const resp=await fetch('https://api.openrouteservice.org/v2/directions/driving-car',{
+    onProgresso?.('Calculando rota...');
+    const resp=await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -3604,35 +3863,10 @@ async function calcularKmRota(){
     const data=await resp.json();
     if(data.error) throw new Error(data.error.message||'Erro na API de rotas');
 
-    const km=data.routes?.[0]?.summary?.distance;
+    const rota=data.features?.[0];
+    const km=rota?.properties?.summary?.distance;
     if(!km&&km!==0) throw new Error('Distância não retornada pela API');
-
-    const kmArredondado=Math.ceil(km); // arredondar para cima por segurança
-    const durSec=data.routes?.[0]?.summary?.duration||0;
-    const durHoras=Math.floor(durSec/3600);
-    const durMin=Math.floor((durSec%3600)/60);
-    const durStr=durHoras>0?`${durHoras}h${String(durMin).padStart(2,'0')}min`:`${durMin}min`;
-
-    // ── Passo 3: Atualizar romaneio ───────────────────────────────────
-    const romContent=document.getElementById('rom-content');
-    if(romContent){
-      romContent.innerHTML=romContent.innerHTML
-        .replace(/____ km/g, kmArredondado+' km')
-        .replace(/____ h/g, durStr);
-    }
-
-    btnTxt.textContent='✓ '+kmArredondado+' km calculados';
-    btn.style.background='var(--ok-bg)';
-    btn.style.borderColor='var(--ok)';
-    btn.style.color='var(--ok-tx)';
-    toast('Rota: '+kmArredondado+' km · ~'+durStr+' · '+os.length+' parada(s)','ok');
-
-  }catch(e){
-    btnTxt.textContent='Erro — tentar novamente';
-    btn.disabled=false; btn.style.opacity='1';
-    toast('Erro ao calcular: '+e.message,'err');
-    console.error('ORS error:',e);
-  }
+    return {km, durSec:rota.properties.summary.duration||0, pontos, falhas, linha:rota.geometry?.coordinates||[]};
 }
 function doPrintRom(){
   const content=document.getElementById('rom-content').innerHTML;
