@@ -46,6 +46,16 @@ function subirMock() {
     chamadasMock.push({ api: 'cobli', chave: req.headers['cobli-api-key'] });
     res.json({ devices: [] });
   });
+  app.get('/v1/analytics/attendances/summary', (req, res) => {
+    chamadasMock.push({ api: 'rd', auth: req.headers.authorization, inicio: req.query.start_date, fim: req.query.end_date });
+    res.json({ attendancesTotal: 7, tma: { val: 30, unit: 'min' }, tme: { val: 2, unit: 'min' }, tmeOut: { val: 0, unit: 'min' } });
+  });
+  app.post('/v3/messages/template/send', (req, res) => {
+    chamadasMock.push({ api: 'rd-envio', auth: req.headers.authorization, corpo: req.body });
+    res.status(201).json({ data: { id: 'msg-1', status: 'checked' }, message: 'Message successfully sent' });
+  });
+  app.get('/v1/analytics/attendances/retention', (req, res) => res.json({ retention: 12.5, chatBotAttendances: 3 }));
+  app.get('/v1/analytics/contacts/origin', (req, res) => res.json({ data: [{ total: 4 }, { total: 6 }] }));
   app.post('/public/v1/routes', (req, res) => {
     chamadasMock.push({ api: 'cobli-rota', chave: req.headers['cobli-api-key'], corpo: req.body });
     res.json(req.body.map((r, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name: r.name })));
@@ -169,6 +179,7 @@ async function subirSupabase() {
       FIREBASE_API_KEY: 'fake', FIREBASE_AUTH_URL: `http://${FS_HOST}:${AUTH_PORTA}/identitytoolkit.googleapis.com`, API_AGENTE_KEY: 'k-teste',
       GEMINI_API_KEY: 'chave-gemini-teste', GEMINI_API_URL: `http://127.0.0.1:${PORTA_MOCK}`,
       COBLI_API_KEY: 'chave-cobli-teste', COBLI_API_URL: `http://127.0.0.1:${PORTA_MOCK}`,
+      RD_API_KEY: 'chave-rd-teste', RD_API_URL: `http://127.0.0.1:${PORTA_MOCK}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -456,4 +467,34 @@ test('IA (Gemini): sem login é recusado; erro do Gemini chega legível ao usuá
   assert.equal(excluirRuim.status, 400);
   const rotaSemLogin = await fetch(`http://127.0.0.1:${PORTA_SB}/api/cobli/rotas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rotas: [{ services: [{}] }] }) });
   assert.equal(rotaSemLogin.status, 401);
+  // Indicadores do RD Conversas para o dashboard
+  const rd = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/indicadores?inicio=2026-09-01&fim=2026-09-30`, { headers: h });
+  assert.equal(rd.status, 200);
+  assert.deepEqual(await rd.json(), { inicio: '2026-09-01', fim: '2026-09-30', atendimentos: 7, tma: { val: 30, unit: 'min' }, tme: { val: 2, unit: 'min' }, retencaoChatbot: 12.5, atendimentosChatbot: 3, novosContatos: 10 });
+  const rdMock = chamadasMock.filter(x => x.api === 'rd').at(-1);
+  assert.equal(rdMock.auth, 'Bearer chave-rd-teste');
+  assert.equal(rdMock.inicio, '2026-09-01T00:00:00');
+  assert.equal(rdMock.fim, '2026-09-30T23:59:59');
+  const rdRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/indicadores?inicio=2026-09-30&fim=2026-09-01`, { headers: h });
+  assert.equal(rdRuim.status, 400);
+  const rdSemLogin = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/indicadores?inicio=2026-09-01&fim=2026-09-30`);
+  assert.equal(rdSemLogin.status, 401);
+  // Confirmação de visita por WhatsApp (template fixo no servidor)
+  const vars = ['Maria', '4176000001', 'sexta-feira, 03/10/2026', 'manhã'];
+  const conf = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/confirmar-visita`, { method: 'POST', headers: h, body: JSON.stringify({ telefone: '+5511999990000', variaveis: vars }) });
+  assert.equal(conf.status, 200);
+  assert.deepEqual(await conf.json(), { enviado: true, id: 'msg-1' });
+  const envio = chamadasMock.filter(x => x.api === 'rd-envio').at(-1);
+  assert.equal(envio.auth, 'Bearer chave-rd-teste');
+  assert.equal(envio.corpo.recipient_number, '+5511999990000');
+  assert.deepEqual(envio.corpo.variables, vars);
+  assert.equal(envio.corpo.sent_by, 'bot');
+  assert.ok(envio.corpo.template_message_id);
+  const confTelRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/confirmar-visita`, { method: 'POST', headers: h, body: JSON.stringify({ telefone: '11999990000', variaveis: vars }) });
+  assert.equal(confTelRuim.status, 400);
+  const confVarRuim = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/confirmar-visita`, { method: 'POST', headers: h, body: JSON.stringify({ telefone: '+5511999990000', variaveis: vars.slice(0, 3) }) });
+  assert.equal(confVarRuim.status, 400);
+  const confSemLogin = await fetch(`http://127.0.0.1:${PORTA_SB}/api/rd/confirmar-visita`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefone: '+5511999990000', variaveis: vars }) });
+  assert.equal(confSemLogin.status, 401);
+  assert.equal(chamadasMock.filter(x => x.api === 'rd-envio').length, 1);
 });

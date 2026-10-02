@@ -284,6 +284,187 @@ app.post('/api/cobli/rotas/excluir', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
+// GET /api/rd/indicadores?inicio=AAAA-MM-DD&fim=AAAA-MM-DD
+// Indicadores de atendimento do RD Station Conversas (WhatsApp) para o dashboard.
+// São da conta inteira do RD Conversas, não só das OS de campo.
+// Render → Environment: RD_API_KEY (RD Conversas → Apps e Integrações → API)
+// ══════════════════════════════════════════════════════════════
+const RD_API_KEY = env('RD_API_KEY', 'RD_CONVERSAS_TOKEN');
+const RD_API_URL = (process.env.RD_API_URL || 'https://api.tallos.com.br').replace(/\/+$/, '');
+const _rdCache = new Map(); // "inicio|fim" → { em, dados } — a RD limita a 100 requisições a cada 2 min
+
+app.get('/api/rd/indicadores', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  const inicio = String(req.query.inicio || ''), fim = String(req.query.fim || '');
+  const reData = /^\d{4}-\d{2}-\d{2}$/;
+  if (!reData.test(inicio) || !reData.test(fim) || inicio > fim) return res.status(400).json({ error: { message: 'Período inválido.' } });
+
+  const chave = inicio + '|' + fim, guardado = _rdCache.get(chave);
+  if (guardado && Date.now() - guardado.em < 5 * 60 * 1000) return res.json(guardado.dados);
+
+  // A API recusa início = fim sem hora; com hora, um único dia funciona
+  const periodo = `start_date=${inicio}T00:00:00&end_date=${fim}T23:59:59`;
+  const rd = async caminho => {
+    const r = await fetch(RD_API_URL + caminho, { headers: { Authorization: 'Bearer ' + RD_API_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
+    const corpo = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(corpo?.error?.message || corpo?.message || `RD Conversas respondeu HTTP ${r.status}`); e.status = r.status; throw e; }
+    return corpo;
+  };
+  try {
+    // O resumo é obrigatório; retenção e novos contatos são complementos (se falharem, ficam de fora)
+    const [resumo, retencao, origem] = await Promise.all([
+      rd(`/v1/analytics/attendances/summary?${periodo}&timezone=America/Sao_Paulo`),
+      rd(`/v1/analytics/attendances/retention?${periodo}&timezone=America/Sao_Paulo`).catch(() => null),
+      rd(`/v1/analytics/contacts/origin?${periodo}`).catch(() => null),
+    ]);
+    const dados = {
+      inicio, fim,
+      atendimentos: resumo.attendancesTotal ?? 0,
+      tma: resumo.tma || null,   // tempo médio de atendimento { val, unit: 'min' | 'h' }
+      tme: resumo.tme || null,   // tempo médio de espera
+      retencaoChatbot: retencao ? retencao.retention ?? null : null,           // % resolvido sem atendente
+      atendimentosChatbot: retencao ? retencao.chatBotAttendances ?? null : null,
+      novosContatos: origem && Array.isArray(origem.data) ? origem.data.reduce((s, d) => s + (d.total || 0), 0) : null,
+    };
+    _rdCache.set(chave, { em: Date.now(), dados });
+    if (_rdCache.size > 200) _rdCache.delete(_rdCache.keys().next().value);
+    res.json(dados);
+  } catch (e) {
+    console.error('RD Conversas:', e.status || '', e.message);
+    res.status(e.status === 401 || e.status === 403 ? 502 : (e.status || 502)).json({ error: { message: 'RD Conversas: ' + e.message } });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/rd/confirmar-visita  { telefone: '+55DDDNÚMERO', variaveis: [nome, os, data, período] }
+// Envia ao cliente, pelo WhatsApp do RD Conversas, o template aprovado de confirmação de visita.
+// O template é fixo (definido aqui no servidor): o navegador só escolhe o destinatário e as variáveis.
+// A RD responde que aceitou o pedido; a entrega em si só aparece no painel do RD Conversas.
+// Render → Environment: RD_TEMPLATE_VISITA (opcional; id do template, padrão "rotasapp_1790951503")
+// ══════════════════════════════════════════════════════════════
+const RD_TEMPLATE_VISITA = env('RD_TEMPLATE_VISITA') || '6abfc6030faed05466a0182d';
+
+app.post('/api/rd/confirmar-visita', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirEdicao(req, res))) return;
+  const telefone = String(req.body?.telefone || ''), variaveis = req.body?.variaveis;
+  if (!/^\+55\d{10,11}$/.test(telefone)) return res.status(400).json({ error: { message: 'Telefone inválido.' } });
+  if (!Array.isArray(variaveis) || variaveis.length !== 4 || variaveis.some(v => typeof v !== 'string' || !v.trim() || v.length > 120)) {
+    return res.status(400).json({ error: { message: 'Informe nome, OS, data e período.' } });
+  }
+  try {
+    const r = await fetch(RD_API_URL + '/v3/messages/template/send', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + RD_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ recipient_number: telefone, country_code: '55', template_message_id: RD_TEMPLATE_VISITA, variables: variaveis.map(v => v.trim()), sent_by: 'bot' }),
+      signal: AbortSignal.timeout(30000),
+    });
+    const corpo = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = corpo?.error?.message || corpo?.message || `RD Conversas respondeu HTTP ${r.status}`;
+      console.error('RD confirmar-visita:', r.status, msg);
+      return res.status(r.status === 401 || r.status === 403 ? 502 : r.status).json({ error: { message: 'RD Conversas: ' + msg } });
+    }
+    res.json({ enviado: true, id: corpo?.data?.id || null });
+  } catch (e) {
+    console.error('RD confirmar-visita:', e.message);
+    res.status(502).json({ error: { message: 'Falha ao falar com o RD Conversas: ' + e.message } });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// Resposta do cliente à confirmação de visita ("Confirmar" / "Preciso de reagendar")
+// Fica em rotas/<data>/confirmacoes/<os>: { resposta: 'confirmado'|'reagendar', respostaEm, respostaVia }
+// e aparece no card da OS. Chega por três caminhos:
+//   1) o fluxo do RD Conversas chama /api/visita/resposta (mais confiável);
+//   2) /api/rd/respostas consulta a última mensagem de cada cliente (plano Basic não dá o histórico:
+//      só pega quem clicou no botão e não mandou mais nada depois);
+//   3) marcação manual na janela de confirmações do app.
+// ══════════════════════════════════════════════════════════════
+const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[*_~]/g, '').trim().toLowerCase();
+function interpretarResposta(texto) {
+  const t = semAcento(texto);
+  if (/reagend|remarc/.test(t)) return 'reagendar';
+  if (/^(confirm|sim\b|ok\b)/.test(t)) return 'confirmado';
+  return null;
+}
+async function gravarResposta(linha, resposta, via, quandoIso) {
+  const dados = { ...linha.dados, resposta, respostaVia: via, respostaEm: { $ts: quandoIso || new Date().toISOString() } };
+  const { error } = await sb.from('documentos').update({ dados, atualizado_em: new Date().toISOString() })
+    .eq('colecao', linha.colecao).eq('id', linha.id);
+  if (error) throw error;
+}
+const diaSP = (offset = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); };
+
+// GET ou POST /api/visita/resposta — chamado pelo fluxo do RD Conversas quando o cliente clica no botão
+// Parâmetros: resposta (texto do botão: "Confirmar" / "Preciso de reagendar") e telefone ou os
+// Header obrigatório: x-api-key (a mesma do /api/visita)
+app.all('/api/visita/resposta', async (req, res) => {
+  const chave = req.headers['x-api-key'] || req.query.key;
+  if (chave !== AGENTE_KEY) return res.status(401).json({ erro: 'Chave de acesso inválida.' });
+  if (!sb) return res.status(503).json({ erro: 'Banco de dados não configurado no servidor.' });
+  const p = { ...req.query, ...(req.body && typeof req.body === 'object' ? req.body : {}) };
+  const resposta = interpretarResposta(p.resposta);
+  if (!resposta) return res.status(400).json({ erro: 'Informe resposta: "Confirmar" ou "Preciso de reagendar".' });
+  if (!p.telefone && !p.os) return res.status(400).json({ erro: 'Informe telefone ou os.' });
+  try {
+    // Confirmações enviadas para visitas de hoje em diante (até 30 dias)
+    const colecoes = []; for (let i = 0; i <= 30; i++) colecoes.push(`rotas/${diaSP(i)}/confirmacoes`);
+    const linhas = await lerTudo(() => sb.from('documentos').select('colecao,id,dados').in('colecao', colecoes).order('colecao').order('id'));
+    const achadas = linhas.filter(l => (p.os && String(l.dados?.os) === String(p.os)) || (p.telefone && telBate(l.dados?.telefone, p.telefone)));
+    if (!achadas.length) return res.json({ ok: false, mensagem: 'Nenhuma confirmação de visita enviada para este cliente.' });
+    // Vale para a visita mais próxima (todas as OS do cliente naquela data)
+    const data = achadas[0].colecao.split('/')[1];
+    const alvo = achadas.filter(l => l.colecao.split('/')[1] === data);
+    for (const l of alvo) await gravarResposta(l, resposta, 'rd');
+    res.json({ ok: true, resposta, data, data_br: data.split('-').reverse().join('/'), os: alvo.map(l => String(l.dados?.os || l.id)) });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// POST /api/rd/respostas { data: 'AAAA-MM-DD' } — consulta no RD Conversas a última mensagem de cada
+// cliente que ainda não respondeu. No máximo uma varredura por data a cada 90 s (limite de uso da RD).
+const _rdRespostasEm = new Map();
+app.post('/api/rd/respostas', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  const data = String(req.body?.data || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ error: { message: 'Data inválida.' } });
+  if (Date.now() - (_rdRespostasEm.get(data) || 0) < 90 * 1000) return res.json({ verificado: false, motivo: 'recente' });
+  _rdRespostasEm.set(data, Date.now());
+  if (_rdRespostasEm.size > 100) _rdRespostasEm.delete(_rdRespostasEm.keys().next().value);
+  try {
+    const linhas = await lerTudo(() => sb.from('documentos').select('colecao,id,dados').eq('colecao', `rotas/${data}/confirmacoes`).order('id'));
+    const pendentes = linhas.filter(l => l.dados?.telefone && !l.dados?.resposta).slice(0, 60);
+    let consultadas = 0; const novas = [];
+    for (const l of pendentes) {
+      const numero = String(l.dados.telefone).replace(/\D/g, '').replace(/^55/, '');
+      const r = await fetch(`${RD_API_URL}/v2/contacts/${numero}/exists?channel=whatsapp&country_code=55`, {
+        headers: { Authorization: 'Bearer ' + RD_API_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(20000),
+      });
+      if (r.status === 429) break; // limite da RD: continua na próxima varredura
+      consultadas++;
+      if (!r.ok) continue;
+      const ultima = (await r.json().catch(() => ({})))?.data?.last_message_data;
+      const enviadoEm = Date.parse(l.dados.enviadoEm?.$ts || '') || 0;
+      const quando = Date.parse(ultima?.created_at || '') || 0;
+      // Só vale clique em botão feito depois do envio da confirmação
+      if (!ultima || ultima.type !== 'button_reply' || !quando || quando < enviadoEm) continue;
+      const resposta = interpretarResposta(ultima.content);
+      if (!resposta) continue;
+      await gravarResposta(l, resposta, 'consulta', new Date(quando).toISOString());
+      novas.push({ os: String(l.dados.os || l.id), resposta });
+    }
+    res.json({ verificado: true, pendentes: pendentes.length, consultadas, novas });
+  } catch (e) {
+    console.error('RD respostas:', e.message);
+    res.status(502).json({ error: { message: 'Falha ao consultar o RD Conversas: ' + e.message } });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
 // GET /api/visita — o agente do RD busca a visita do cliente
 // Parâmetros (qualquer um): ?telefone= | ?os= | ?nome=
 // Header obrigatório: x-api-key
@@ -315,6 +496,9 @@ app.get('/api/visita', async (req, res) => {
     }
     const linhas = await lerTudo(() => sb.from('documentos').select('colecao,id,dados')
       .in('colecao', colecoes).order('colecao').order('id'));
+    // A OS guarda só o id do técnico (techId); o nome vem do cadastro de técnicos
+    const tecnicos = await lerTudo(() => sb.from('documentos').select('id,dados').eq('colecao', 'tecnicos').order('id'));
+    const nomeTecnico = Object.fromEntries(tecnicos.map(t => [t.id, t.dados?.nome || '']));
 
     const STATUS = { finalizado: 'Finalizado', pendente: 'Aguardando atendimento', em_progresso: 'Em andamento' };
     const resultados = [];
@@ -332,7 +516,7 @@ app.get('/api/visita', async (req, res) => {
           data_br:  ds.split('-').reverse().join('/'),
           periodo:  o.periodo === 'tarde' ? 'tarde' : 'manhã',
           status:   STATUS[o.status] || o.status || '',
-          tecnico:  o.techNome || '',
+          tecnico:  o.techNome || nomeTecnico[o.techId] || '',
           endereco: [o.endereco, o.bairro].filter(Boolean).join(', '),
         });
       }
@@ -399,6 +583,7 @@ app.get('/api/status', (req, res) => {
       SUPABASE_SERVICE_KEY: !!SUPABASE_KEY,
       GEMINI_API_KEY: !!GEMINI_API_KEY,
       COBLI_API_KEY: !!COBLI_API_KEY,
+      RD_API_KEY: !!RD_API_KEY,
     },
     uptime_segundos: uptimeSeg,
     uptime_legivel: uptimeSeg > 3600 ? Math.floor(uptimeSeg / 3600) + 'h' : Math.floor(uptimeSeg / 60) + 'min',

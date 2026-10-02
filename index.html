@@ -95,7 +95,7 @@ onAuthStateChanged(auth, async (fbUser) => {
 @keyframes popIn{0%{opacity:0;transform:scale(.85)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
 :root{--anim-fast:.15s;--anim-mid:.22s;--anim-slow:.35s;--ease:cubic-bezier(.4,0,.2,1);--ease-spring:cubic-bezier(.34,1.56,.64,1)}
 
-body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh;contain:layout}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh}
 button,select,input,textarea{font-family:inherit}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
@@ -287,6 +287,12 @@ body.somente-leitura .osc{cursor:pointer}
 .osc.st-progresso{}
 
 .osc.dragging{opacity:.3;transform:scale(.95)}
+/* Resposta do cliente à confirmação de visita (ao lado do ponto de status) */
+.osc-conf{position:absolute;top:4px;right:20px;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surf2);color:var(--tx3);font:700 11px/1 'DM Sans',system-ui,sans-serif}
+.osc-conf svg{width:10px;height:10px}
+.osc-conf.ok{background:var(--ok);color:#fff}
+.osc-conf.alerta{background:var(--warn);color:#fff;box-shadow:0 0 0 2px var(--warn-bg)}
+.osc:has(.osc-conf) .osc-num{padding-right:34px}
 .osc-sdot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--brd2)}
 .osc-sdot.done{background:var(--ok)}.osc-sdot.ftc{background:var(--warn)}
 .osc-sdot.pendente{background:var(--err)}.osc-sdot.progresso{background:var(--ow)}
@@ -680,6 +686,7 @@ body.somente-leitura .osc{cursor:pointer}
         <div class="fchip" id="fc-lp" onclick="setFilter('lp',this)">LP</div>
         <div class="fchip" id="fc-ow" onclick="setFilter('ow',this)">OW</div>
         <div class="fchip" id="fc-pend" onclick="setFilter('pend',this)">Pendentes</div>
+        <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirConfirmacoes()" title="Envia aos clientes, pelo WhatsApp, a confirmação da visita desta data"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/><path d="M4.8 7.2l1.5 1.5 3-3.2"/></svg>Confirmar visitas</button>
         <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirEnvioCobli()" title="Cria na Cobli as rotas desta data, na ordem do quadro"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 1.5L6 8M12.5 1.5l-4 11-2.5-4.5L1.5 5.5l11-4z"/></svg>Enviar para a Cobli</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
@@ -1015,6 +1022,24 @@ body.somente-leitura .osc{cursor:pointer}
     <div class="mfoot">
       <button class="btn-ghost" onclick="fecharEnvioCobli()" id="cobli-cancelar">Cancelar</button>
       <button class="btn-save" style="flex:none;padding:9px 16px" id="cobli-enviar" onclick="enviarRotasCobli()">Enviar selecionadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAÇÃO DE VISITA POR WHATSAPP -->
+<div class="moverlay" id="modal-conf" onclick="if(event.target===this)fecharConfirmacoes()">
+  <div class="modal" style="width:560px">
+    <div class="mhdr">
+      <div>
+        <span class="mtitle">Confirmar visitas por WhatsApp</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:3px" id="conf-data-sub">—</div>
+      </div>
+      <button class="mclose" onclick="fecharConfirmacoes()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <div class="mbody s1" id="conf-body" style="gap:0"></div>
+    <div class="mfoot">
+      <button class="btn-ghost" onclick="fecharConfirmacoes()" id="conf-cancelar">Cancelar</button>
+      <button class="btn-save" style="flex:none;padding:9px 16px" id="conf-enviar" onclick="enviarConfirmacoes()">Enviar selecionadas</button>
     </div>
   </div>
 </div>
@@ -2359,6 +2384,182 @@ window.enviarRotasCobli = async function(){
   toast(ok === fila.length ? `${ok} rota(s) enviada(s) para a Cobli` : `${ok} de ${fila.length} rota(s) enviada(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
 };
 
+/* ════════════════════════════════════════════════════════
+   CONFIRMAÇÃO DE VISITA POR WHATSAPP (RD Station Conversas)
+   Botão "Confirmar visitas" no quadro: envia a cada cliente da data o template aprovado
+   "Sua visita técnica referente à OS {os} está agendada para {data}, no período da {período}".
+   O que já foi enviado fica em rotas/<data>/confirmacoes/<os> (para não mandar duas vezes).
+   A RD só informa que aceitou o pedido; a entrega e a resposta do cliente ficam no RD Conversas.
+════════════════════════════════════════════════════════ */
+let _confEnvio = null; // { data, dataTexto, itens:[{o, tec, chave, tel, periodo, enviado, marcado, estado, msg}], enviando }
+
+// "(11) 95682-6048", "5511956826048", "11956826048   " → "+5511956826048"; inválido → null
+const _confTelefone = tel => {
+  const d = String(tel||'').replace(/\D/g,'');
+  const n = d.length >= 12 && d.startsWith('55') ? d.slice(2) : d;
+  return /^[1-9]\d9?\d{8}$/.test(n) ? '+55'+n : null;
+};
+const _confNome = nome => {
+  const p = String(nome||'').trim().split(/\s+/)[0] || '';
+  return p ? p[0].toUpperCase()+p.slice(1).toLowerCase() : 'cliente';
+};
+// Completa "no período da …" do template
+const _confPeriodo = p => p==='manha' ? 'manhã' : p==='tarde' ? 'tarde' : 'manhã ou da tarde';
+const _confMascara = t => t.replace(/^\+55(\d{2})(\d+)(\d{4})$/, '($1) $2-$3');
+
+window.abrirConfirmacoes = async function(){
+  const data = currentDate;
+  if(isPast(data)){ toast('Esta data já passou — não há visita a confirmar.','warn'); return; }
+  // Uma mensagem por OS: a mesma OS em dois técnicos (ou repetida) conta uma vez só
+  const vistos = new Set(), itens = [];
+  (S.tecnicosAtivos||[]).forEach(tec => {
+    ordensForDate(data).filter(o=>o.techId===tec.id).sort((a,b)=>(a.posicao||0)-(b.posicao||0)).forEach(o => {
+      if(o.status === 'finalizado') return;
+      const chave = _confChave(o);
+      if(vistos.has(chave)) return;
+      vistos.add(chave);
+      itens.push({ o, tec, chave, tel: _confTelefone(o.tel), periodo: o.periodo==='manha'||o.periodo==='tarde' ? o.periodo : 'nd', enviado:null, marcado:false, estado:'', msg:'' });
+    });
+  });
+  if(!itens.length){ toast('Nenhuma OS nesta data para confirmar.','warn'); return; }
+
+  document.getElementById('conf-data-sub').textContent = fmtDate(data);
+  document.getElementById('conf-body').innerHTML = '<div class="ia-loading" style="color:var(--tx2);padding:14px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span>Verificando o que já foi enviado...</div>';
+  document.getElementById('conf-enviar').disabled = true;
+  openModal('modal-conf');
+  try{
+    const {getDocs,collection} = getFB();
+    const snap = await getDocs(collection(getDB(),`rotas/${data}/confirmacoes`));
+    const enviados = {}; snap.docs.forEach(d => { enviados[d.id] = d.data(); });
+    itens.forEach(it => {
+      it.enviado = enviados[it.chave] || null;
+      // marca por padrão o que pode ir sem dúvida: telefone válido, período definido e ainda não enviada
+      it.marcado = !!it.tel && it.periodo !== 'nd' && !it.enviado;
+    });
+    _confVerificarRespostas(data, true); // ao abrir, confere no RD Conversas quem já respondeu
+    _confEnvio = { data, enviando:false, itens,
+      dataTexto: new Date(data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}) };
+    _confRender();
+  }catch(e){
+    document.getElementById('conf-body').innerHTML = `<div style="font-size:12.5px;color:var(--err);padding:10px 0">Não foi possível verificar os envios anteriores: ${e.message}</div>`;
+  }
+};
+
+window.fecharConfirmacoes = function(){
+  if(_confEnvio?.enviando) return; // não fecha no meio do envio
+  closeModal('modal-conf'); _confEnvio = null;
+};
+
+function _confRender(){
+  const E = _confEnvio; if(!E) return;
+  let tecAtual = null;
+  const linhas = E.itens.map((it,i) => {
+    const o = it.o;
+    // o registro ao vivo (tempo real) traz a resposta do cliente assim que ela chega
+    const env = it.enviado = S.confirmacoes?.[E.data]?.[it.chave] || it.enviado;
+    const hora = ts => ts?.toDate ? ts.toDate().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    const quando = hora(env?.enviadoEm);
+    let status, cor = 'var(--tx3)';
+    if(it.estado==='enviando'){ status = '<span class="ia-loading" style="color:var(--tx2);font-size:11px"><span class="spin" style="width:10px;height:10px;border-color:var(--brd2);border-top-color:var(--tx2)"></span>Enviando...</span>'; }
+    else if(it.estado==='erro'){ status = '✗ '+it.msg; cor = 'var(--err)'; }
+    else if(env?.resposta==='confirmado'){ status = `👍 Cliente confirmou${hora(env.respostaEm) ? ' em '+hora(env.respostaEm) : ''}${env.respostaVia==='manual' ? ' (marcado à mão)' : ''}`; cor = 'var(--ok-tx)'; }
+    else if(env?.resposta==='reagendar'){ status = `<b>!</b> Cliente pediu para reagendar${hora(env.respostaEm) ? ' em '+hora(env.respostaEm) : ''}${env.respostaVia==='manual' ? ' (marcado à mão)' : ''}`; cor = 'var(--warn-tx)'; }
+    else if(it.estado==='ok'){ status = '✓ Enviada agora — aguardando resposta'; cor = 'var(--ok-tx)'; }
+    else if(!it.tel){ status = `Telefone inválido${o.tel ? ': '+String(o.tel).trim() : ' (vazio)'}`; cor = 'var(--err)'; }
+    else if(env && env.periodo !== it.periodo){ status = `Enviada ${quando} com outro período (${_confPeriodo(env.periodo)}) — marque para corrigir`; cor = 'var(--warn-tx)'; }
+    else if(env){ status = `Já enviada ${quando}${env.user ? ' por '+env.user.split(' ')[0] : ''} — sem resposta`; }
+    else if(it.periodo==='nd'){ status = 'Período não definido — se enviar, sai "manhã ou da tarde"'; cor = 'var(--warn-tx)'; }
+    else status = 'Pronta para enviar';
+    const cab = it.tec.id !== tecAtual ? `<div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 2px">${it.tec.nome}</div>` : '';
+    tecAtual = it.tec.id;
+    return cab + `<label style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:.5px solid var(--brd);cursor:${it.tel&&!E.enviando?'pointer':'default'}">
+      <input type="checkbox" style="width:15px;height:15px;margin-top:2px;flex-shrink:0" ${it.marcado?'checked':''} ${!it.tel||E.enviando?'disabled':''} onchange="_confEnvio.itens[${i}].marcado=this.checked;_confBotao()">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">#${o.os}</span>
+          <span style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.nome_cliente||'(sem nome)'}</span>
+          <span style="font-size:11px;color:var(--tx3);white-space:nowrap;margin-left:auto">${it.periodo==='nd'?'N/D':_confPeriodo(it.periodo)}${it.tel ? ' · '+_confMascara(it.tel) : ''}</span>
+        </div>
+        <div style="font-size:11px;color:${cor};margin-top:2px">${status}</div>
+        ${env && !E.enviando ? `<div style="font-size:10.5px;color:var(--tx3);margin-top:2px" onclick="event.preventDefault()">Marcar à mão:
+          ${[['confirmado','confirmou'],['reagendar','pediu reagendamento'],['','sem resposta']].filter(([v])=>(env.resposta||'')!==v).map(([v,t])=>`<a style="color:var(--ow);cursor:pointer;text-decoration:underline;margin-left:4px" onclick="marcarRespostaConf(${i},'${v}')">${t}</a>`).join('')}</div>` : ''}
+      </div>
+    </label>`;
+  }).join('');
+  const prontas = E.itens.filter(it=>it.tel&&!it.enviado&&it.estado!=='ok').length;
+  const comResposta = r => E.itens.filter(it=>it.enviado?.resposta===r).length;
+  document.getElementById('conf-body').innerHTML = `
+    <div style="background:var(--surf2);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--tx2);line-height:1.5">
+      <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Mensagem que o cliente recebe</div>
+      Olá, <b>(nome)</b>! Somos a CTDI, assistência técnica autorizada Samsung. Sua visita técnica referente à OS <b>(número)</b> está agendada para <b>${E.dataTexto}</b>, no período da <b>(manhã/tarde)</b>. Pedimos que haja um responsável no local para receber o técnico.
+      <span style="color:var(--tx3)">Botões: Confirmar · Preciso de reagendar</span>
+    </div>
+    <div style="display:flex;gap:12px;font-size:11.5px;padding:8px 0 0;color:var(--tx3)">
+      <span>${E.itens.length} OS · ${prontas} sem envio · 👍 ${comResposta('confirmado')} · <b>!</b> ${comResposta('reagendar')}</span>
+      ${E.enviando ? '' : `<a style="margin-left:auto;color:var(--ow);cursor:pointer;text-decoration:underline" onclick="_confMarcar(true)">Marcar as prontas</a><a style="color:var(--ow);cursor:pointer;text-decoration:underline" onclick="_confMarcar(false)">Desmarcar todas</a>`}
+    </div>
+    ${linhas}
+    <div style="font-size:10.5px;color:var(--tx3);line-height:1.5;margin-top:10px">A resposta do cliente aparece no card da OS: 👍 confirmou, <b>!</b> pediu reagendamento. O Rotas confere no RD Conversas a cada poucos minutos, mas só enxerga a última mensagem do cliente; se ele continuar a conversa com o chatbot, marque a resposta à mão aqui. O Rotas não tem como saber se a mensagem foi entregue ou lida.</div>`;
+  _confBotao();
+}
+
+// Marcação manual da resposta (cliente respondeu por telefone, ou a consulta à RD não pegou)
+window.marcarRespostaConf = async function(i, resposta){
+  const E = _confEnvio, it = E?.itens[i]; if(!it || !it.enviado || E.enviando) return;
+  try{
+    const {updateDoc,doc,serverTimestamp} = getFB();
+    await updateDoc(doc(getDB(),`rotas/${E.data}/confirmacoes`,it.chave), resposta
+      ? { resposta, respostaVia:'manual', respostaEm:serverTimestamp(), respostaPor:window._currentUser?.nome||'' }
+      : { resposta:null, respostaVia:null, respostaEm:null, respostaPor:null });
+    if(resposta) await logAudit(it.o.os, 'edicao', resposta==='confirmado' ? 'Visita confirmada pelo cliente (marcado à mão)' : 'Cliente pediu reagendamento (marcado à mão)', resposta==='confirmado'?'ok':'warn', E.data);
+  }catch(e){ toast('Erro ao marcar: '+e.message,'err'); }
+};
+
+window._confMarcar = function(sim){
+  const E = _confEnvio; if(!E || E.enviando) return;
+  E.itens.forEach(it => { it.marcado = sim && !!it.tel && it.periodo !== 'nd' && !it.enviado && it.estado !== 'ok'; });
+  _confRender();
+};
+
+window._confBotao = function(){
+  const E = _confEnvio, btn = document.getElementById('conf-enviar'); if(!E||!btn) return;
+  const n = E.itens.filter(it=>it.marcado).length;
+  btn.disabled = E.enviando || !n;
+  btn.textContent = E.enviando ? 'Enviando...' : n ? `Enviar ${n} mensage${n>1?'ns':'m'}` : 'Enviar selecionadas';
+  document.getElementById('conf-cancelar').textContent = E.itens.some(it=>it.estado==='ok') ? 'Fechar' : 'Cancelar';
+};
+
+window.enviarConfirmacoes = async function(){
+  const E = _confEnvio; if(!E || E.enviando) return;
+  const fila = E.itens.filter(it=>it.marcado && it.tel);
+  if(!fila.length) return;
+  const {setDoc,doc,serverTimestamp} = getFB();
+  E.enviando = true; _confRender();
+  let ok = 0;
+  for(const it of fila){
+    it.estado = 'enviando'; _confRender();
+    try{
+      const resp = await _cobliApi('/api/rd/confirmar-visita', {
+        telefone: it.tel,
+        variaveis: [_confNome(it.o.nome_cliente), String(it.o.os), E.dataTexto, _confPeriodo(it.periodo)],
+      });
+      const registro = { os:String(it.o.os), telefone:it.tel, periodo:it.periodo, techId:it.tec.id, mensagemId:resp.id||null,
+        user:window._currentUser?.nome||'Sistema', uid:getUID()||'' };
+      await setDoc(doc(getDB(),`rotas/${E.data}/confirmacoes`,it.chave), {...registro, enviadoEm:serverTimestamp()});
+      it.enviado = {...registro, enviadoEm:{ toDate:()=>new Date() }};
+      await logAudit(it.o.os, 'edicao', `Confirmação de visita enviada por WhatsApp (${_confPeriodo(it.periodo)})`, 'info', E.data);
+      it.estado = 'ok'; it.marcado = false; ok++;
+    }catch(e){
+      it.estado = 'erro'; it.msg = e.message;
+      console.error('Confirmação de visita (OS '+it.o.os+'):', e);
+    }
+    _confRender();
+    await new Promise(r=>setTimeout(r,700)); // a RD aceita 100 requisições a cada 2 minutos
+  }
+  E.enviando = false; _confRender();
+  toast(ok === fila.length ? `${ok} confirmação(ões) enviada(s) por WhatsApp` : `${ok} de ${fila.length} enviada(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
+};
+
 function subscribeTravas(data){
   // Travas do dia em tempo real
   if(unsubs.travas){ unsubs.travas(); delete unsubs.travas; }
@@ -2368,6 +2569,48 @@ function subscribeTravas(data){
     snap.docs.forEach(d=>{ S.travas[data][d.id] = d.data(); });
     if(data===currentDate) renderBoardSeguro();
   }, e=>{ S.travas[data] = S.travas[data] || {}; console.warn('Tempo real (travas):', e); });
+  subscribeConfirmacoes(data);
+}
+
+// Confirmações de visita do dia (enviadas por WhatsApp e a resposta do cliente), em tempo real.
+// S.confirmacoes[data][chave da OS] = { enviadoEm, periodo, resposta: 'confirmado'|'reagendar', ... }
+let _confPollTimer = null;
+function subscribeConfirmacoes(data){
+  if(unsubs.confirmacoes){ unsubs.confirmacoes(); delete unsubs.confirmacoes; }
+  S.confirmacoes = S.confirmacoes || {};
+  const {onSnapshot,collection} = getFB();
+  unsubs.confirmacoes = onSnapshot(collection(getDB(),`rotas/${data}/confirmacoes`), snap=>{
+    S.confirmacoes[data] = {};
+    snap.docs.forEach(d=>{ S.confirmacoes[data][d.id] = d.data(); });
+    if(data===currentDate) renderBoardSeguro();
+    if(_confEnvio && _confEnvio.data===data && !_confEnvio.enviando) _confRender();
+    _confVerificarRespostas(data);
+  }, e=>{ S.confirmacoes[data] = S.confirmacoes[data] || {}; console.warn('Tempo real (confirmações):', e); });
+  // Enquanto houver cliente sem resposta, pergunta ao RD Conversas a cada 3 minutos (com a aba visível)
+  clearInterval(_confPollTimer);
+  _confPollTimer = setInterval(()=>{ if(!document.hidden) _confVerificarRespostas(currentDate); }, 3*60*1000);
+}
+// Pede ao servidor para conferir no RD Conversas quem respondeu. O servidor limita a frequência;
+// o que ele achar chega pelo tempo real acima.
+let _confVerificandoEm = 0;
+async function _confVerificarRespostas(data, forcar){
+  const pendentes = Object.values(S.confirmacoes?.[data]||{}).some(c=>c.enviadoEm && !c.resposta);
+  if(!pendentes || isPast(data)) return;
+  if(!forcar && Date.now() - _confVerificandoEm < 60*1000) return;
+  _confVerificandoEm = Date.now();
+  try{
+    await fetch('/api/rd/respostas', { method:'POST', headers:{'Content-Type':'application/json', ...(await _authHeader())}, body: JSON.stringify({data}) });
+  }catch(e){ console.warn('Verificação de respostas:', e); }
+}
+const _confChave = o => String(o.os||o.id).replace(/[^\w-]/g,'_');
+// Símbolo no card: 👍 confirmou · ! pediu reagendamento · balão cinza = enviada, sem resposta
+function _confSelo(o){
+  const c = S.confirmacoes?.[o.data]?.[_confChave(o)];
+  if(!c) return '';
+  const quando = c.respostaEm?.toDate ? ' em '+c.respostaEm.toDate().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+  if(c.resposta==='confirmado') return `<div class="osc-conf ok" title="Cliente confirmou a visita${quando}"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2l2-4.2c.9 0 1.5.6 1.5 1.5v1.7h2.6c.7 0 1.2.6 1.1 1.3l-.7 4c-.1.6-.6 1-1.1 1H4.5V6.2z"/><path d="M4.5 6.2H2.6v5.3h1.9"/></svg></div>`;
+  if(c.resposta==='reagendar') return `<div class="osc-conf alerta" title="Cliente pediu para reagendar${quando}">!</div>`;
+  return `<div class="osc-conf" title="Confirmação enviada por WhatsApp — sem resposta ainda"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/></svg></div>`;
 }
 
 let _travaTecId = null;
@@ -2408,6 +2651,7 @@ window.removerTrava = async function(tecId){
 
 function stopAllListeners(){
   stopOrdens(); // parar polling
+  clearInterval(_confPollTimer);
   Object.values(unsubs).forEach(u=>{ try{u()}catch(e){} });
   Object.keys(unsubs).forEach(k=>delete unsubs[k]);
 }
@@ -2629,6 +2873,7 @@ function makeCard(o){
       <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.cep||o.bairro||'—'}</div>
       <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':o.periodo==='tarde'?'otag-t':'otag-nd'}">${o.periodo==='manha'?'Mnh':o.periodo==='tarde'?'Trd':'N/D'}</span></div>
     </div>`;
+  card.insertAdjacentHTML('beforeend', _confSelo(o));
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
   card.addEventListener('dragend',()=>{card.classList.remove('dragging');draggingId=null;document.querySelectorAll('.empty-slot').forEach(s=>s.classList.remove('dov'));if(_renderPendente)renderBoardSeguro();});
   // Botão de comentário para OS pendentes do dia de hoje
@@ -4224,6 +4469,58 @@ function getDashOrdens(){
   return Object.values(S.ordens).flat(); // geral
 }
 
+/* ── ATENDIMENTO NO WHATSAPP — indicadores do RD Station Conversas ──
+   Vêm do servidor (/api/rd/indicadores), que guarda a chave da RD. São da conta inteira
+   do RD Conversas no período do dashboard, não só dos clientes das OS. */
+const _dashRdCache = {}; // "inicio|fim" → { em, dados } | { em, erro } | { carregando }
+function _dashRdPeriodo(){
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if(dashPeriod==='dia') return [currentDate, currentDate];
+  if(dashPeriod==='mes'){ const [y,m] = dashMes.split('-').map(Number); return [`${dashMes}-01`, iso(new Date(y, m, 0))]; }
+  if(dashPeriod==='ano') return [`${dashAno}-01-01`, `${dashAno}-12-31`];
+  const d = new Date(); d.setFullYear(d.getFullYear()-2); // geral: últimos 2 anos
+  return [iso(d), TODAY_STR];
+}
+function _dashRdDesenhar(){
+  const el = document.getElementById('dash-rd'); if(!el) return;
+  const [inicio, fim] = _dashRdPeriodo(), c = _dashRdCache[inicio+'|'+fim];
+  if(!c || c.oculto){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const cab = `<div class="dc-hdr"><span class="dc-title">Atendimento no WhatsApp <span style="font-weight:400;color:var(--tx3)">· RD Conversas, conta inteira</span></span><span style="font-size:10px;color:var(--tx3)">${getDashLabel()}</span></div>`;
+  if(c.carregando){ el.innerHTML = cab + '<div class="ia-loading" style="color:var(--tx3);font-size:12px;padding:4px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span>Consultando o RD Conversas...</div>'; return; }
+  if(c.erro){ el.innerHTML = cab + `<div style="font-size:12px;color:var(--tx3);padding:4px 0">Indicadores indisponíveis: ${c.erro}</div>`; return; }
+  const d = c.dados;
+  const tempo = t => !t ? '—' : `${Number(t.val||0).toLocaleString('pt-BR')} ${t.unit==='h'?'h':'min'}`;
+  const num = v => v == null ? '—' : Number(v).toLocaleString('pt-BR');
+  const cards = [
+    {l:'Atendimentos', v:num(d.atendimentos), sub:'conversas atendidas', cor:'var(--tx)'},
+    {l:'Tempo médio de atendimento', v:tempo(d.tma), sub:'da abertura ao encerramento', cor:'var(--ow)'},
+    {l:'Tempo médio de espera', v:tempo(d.tme), sub:'até o primeiro atendimento', cor:'var(--ow)'},
+    d.retencaoChatbot != null && {l:'Resolvido pelo chatbot', v:num(d.retencaoChatbot)+'%', sub:`${num(d.atendimentosChatbot)} atendimento(s) do chatbot`, cor:'var(--ok)'},
+    d.novosContatos != null && {l:'Novos contatos', v:num(d.novosContatos), sub:'entraram no período', cor:'var(--tx)'},
+  ].filter(Boolean);
+  el.innerHTML = cab + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">${cards.map(k=>`
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">${k.l}</div>
+      <div style="font-size:22px;font-weight:700;color:${k.cor};line-height:1">${k.v}</div>
+      <div style="font-size:10.5px;color:var(--tx3);margin-top:4px">${k.sub}</div>
+    </div>`).join('')}</div>`;
+}
+async function dashRdCarregar(){
+  const [inicio, fim] = _dashRdPeriodo(), chave = inicio+'|'+fim, c = _dashRdCache[chave];
+  // O dashboard é redesenhado a cada mudança no quadro: só consulta de novo depois de 5 min
+  if(c && (c.carregando || Date.now() - c.em < 5*60*1000)){ _dashRdDesenhar(); return; }
+  _dashRdCache[chave] = {carregando:true}; _dashRdDesenhar();
+  try{
+    const resp = await fetch(`/api/rd/indicadores?inicio=${inicio}&fim=${fim}`, {headers: await _authHeader()});
+    const data = await resp.json().catch(()=>({}));
+    if(resp.status === 503) _dashRdCache[chave] = {em:Date.now(), oculto:true}; // RD não configurado no servidor: sem card
+    else if(!resp.ok) _dashRdCache[chave] = {em:Date.now(), erro: data.error?.message || `HTTP ${resp.status}`};
+    else _dashRdCache[chave] = {em:Date.now(), dados:data};
+  }catch(e){ _dashRdCache[chave] = {em:Date.now(), erro:e.message}; }
+  _dashRdDesenhar();
+}
+
 function getDashLabel(){
   if(dashPeriod==='dia')   return fmtShort(currentDate)+(currentDate===TODAY_STR?' · Hoje':'');
   if(dashPeriod==='mes')   return MESES[parseInt(dashMes.split('-')[1])-1]+' '+dashMes.split('-')[0];
@@ -4414,6 +4711,9 @@ function renderDashboard(){
     </div>
   </div>
 
+  <!-- ── ATENDIMENTO NO WHATSAPP (RD Conversas) — preenchido por dashRdCarregar() ── -->
+  <div class="dash-card" id="dash-rd" style="margin:0 16px 16px;display:none"></div>
+
   <!-- ── PRODUTIVIDADE ─────────────────────────────────── -->
   <div class="dash-card" style="margin:0 16px 16px">
     <div class="dc-hdr"><span class="dc-title">Produtividade por técnico</span></div>
@@ -4445,6 +4745,8 @@ function renderDashboard(){
       }).join('')}
     </div>
   </div>`;
+
+  dashRdCarregar();
 
   // Iniciar ticker animado
   const ticker=document.getElementById('dash-ticker');
@@ -5322,7 +5624,7 @@ window.capturarTela = async function(elementId, nome){
 /* ── SOMENTE VISUALIZAÇÃO: toda ação que grava é barrada na entrada ── */
 ['saveDrawer','saveOS','deleteOS','dropOnLane','openModalOS','clonePrompt','replicarPendentes',
  'abrirTravaModal','salvarTrava','removerTrava','abrirNotaPend','salvarNotaPend','autoSaveNotaPend',
- 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli',
+ 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli','abrirConfirmacoes','enviarConfirmacoes','marcarRespostaConf',
  'openTecForm','removeTec','reativarTec','openAuxForm','openTrocaAux',
  'openUserForm','resetUserPassword','removeUser','editCargo','openCargoForm',
  'openTipoForm','removeTipo','restaurarTiposPadrao'].forEach(nome=>{
