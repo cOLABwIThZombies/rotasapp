@@ -2584,6 +2584,7 @@ function subscribeConfirmacoes(data){
     snap.docs.forEach(d=>{ S.confirmacoes[data][d.id] = d.data(); });
     if(data===currentDate) renderBoardSeguro();
     if(_confEnvio && _confEnvio.data===data && !_confEnvio.enviando) _confRender();
+    if(document.getElementById('screen-dashboard').classList.contains('on')){ Object.keys(_dashConfCache).forEach(k=>delete _dashConfCache[k]); dashConfCarregar(); }
     _confVerificarRespostas(data);
   }, e=>{ S.confirmacoes[data] = S.confirmacoes[data] || {}; console.warn('Tempo real (confirmações):', e); });
   // Enquanto houver cliente sem resposta, pergunta ao RD Conversas a cada 3 minutos (com a aba visível)
@@ -4521,6 +4522,49 @@ async function dashRdCarregar(){
   _dashRdDesenhar();
 }
 
+/* ── CONFIRMAÇÕES DE VISITA — quantas foram enviadas e o que os clientes responderam ──
+   No período "Dia" usa o que já está em tempo real; nos demais lê todas as confirmações
+   (rotas/<data>/confirmacoes) e filtra pela data da visita. */
+const _dashConfCache = {}; // "inicio|fim" → { em, lista } | { carregando }
+async function dashConfCarregar(){
+  const [inicio, fim] = _dashRdPeriodo(), chave = inicio+'|'+fim;
+  let lista;
+  if(dashPeriod==='dia') lista = Object.values(S.confirmacoes?.[currentDate]||{});
+  else {
+    const c = _dashConfCache[chave];
+    if(c?.carregando) return;
+    if(c && Date.now() - c.em < 2*60*1000) lista = c.lista;
+    else {
+      _dashConfCache[chave] = {carregando:true};
+      try{
+        const {getDocs,collectionGroup} = getFB();
+        const snap = await getDocs(collectionGroup(getDB(),'confirmacoes'));
+        lista = snap.docs.filter(d=>{ const dia = (d.ref?.path||'').split('/')[1]||''; return dia >= inicio && dia <= fim; }).map(d=>d.data());
+      }catch(e){ console.warn('Confirmações (dashboard):', e); lista = []; }
+      _dashConfCache[chave] = {em:Date.now(), lista};
+      if(_dashRdPeriodo().join('|') !== chave) return; // o período mudou enquanto carregava
+    }
+  }
+  const el = document.getElementById('dash-conf'); if(!el) return;
+  const enviadas = lista.filter(c=>c.enviadoEm);
+  const n = r => enviadas.filter(c=>(c.resposta||'')===r).length;
+  const pct = v => enviadas.length ? Math.round(v/enviadas.length*100)+'% das enviadas' : '—';
+  const cards = [
+    {l:'Enviadas', v:enviadas.length, sub:'confirmações por WhatsApp', cor:'var(--tx)'},
+    {l:'👍 Confirmaram', v:n('confirmado'), sub:pct(n('confirmado')), cor:'var(--ok)'},
+    {l:'! Pediram reagendamento', v:n('reagendar'), sub:pct(n('reagendar')), cor:n('reagendar')?'var(--warn)':'var(--tx3)'},
+    {l:'Sem resposta', v:n(''), sub:pct(n('')), cor:'var(--tx3)'},
+  ];
+  el.style.display = '';
+  el.innerHTML = `<div class="dc-hdr"><span class="dc-title">Confirmações de visita <span style="font-weight:400;color:var(--tx3)">· WhatsApp</span></span><span style="font-size:10px;color:var(--tx3)">visitas de ${getDashLabel()}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">${cards.map(k=>`
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">${k.l}</div>
+      <div style="font-size:22px;font-weight:700;color:${k.cor};line-height:1">${k.v}</div>
+      <div style="font-size:10.5px;color:var(--tx3);margin-top:4px">${k.sub}</div>
+    </div>`).join('')}</div>`;
+}
+
 function getDashLabel(){
   if(dashPeriod==='dia')   return fmtShort(currentDate)+(currentDate===TODAY_STR?' · Hoje':'');
   if(dashPeriod==='mes')   return MESES[parseInt(dashMes.split('-')[1])-1]+' '+dashMes.split('-')[0];
@@ -4711,6 +4755,9 @@ function renderDashboard(){
     </div>
   </div>
 
+  <!-- ── CONFIRMAÇÕES DE VISITA POR WHATSAPP — preenchido por dashConfCarregar() ── -->
+  <div class="dash-card" id="dash-conf" style="margin:0 16px 16px;display:none"></div>
+
   <!-- ── ATENDIMENTO NO WHATSAPP (RD Conversas) — preenchido por dashRdCarregar() ── -->
   <div class="dash-card" id="dash-rd" style="margin:0 16px 16px;display:none"></div>
 
@@ -4746,6 +4793,7 @@ function renderDashboard(){
     </div>
   </div>`;
 
+  dashConfCarregar();
   dashRdCarregar();
 
   // Iniciar ticker animado
