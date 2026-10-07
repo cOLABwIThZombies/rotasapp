@@ -292,6 +292,7 @@ body.somente-leitura .osc{cursor:pointer}
 .osc-conf svg{width:10px;height:10px}
 .osc-conf.ok{background:var(--ok);color:#fff}
 .osc-conf.alerta{background:var(--warn);color:#fff;box-shadow:0 0 0 2px var(--warn-bg)}
+.osc-conf.texto{background:var(--ow);color:#fff}
 .osc:has(.osc-conf) .osc-num{padding-right:34px}
 .osc-sdot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--brd2)}
 .osc-sdot.done{background:var(--ok)}.osc-sdot.ftc{background:var(--warn)}
@@ -2467,6 +2468,7 @@ function _confRender(){
     else if(it.estado==='ok'){ status = '✓ Enviada agora — aguardando resposta'; cor = 'var(--ok-tx)'; }
     else if(!it.tel){ status = `Telefone inválido${o.tel ? ': '+String(o.tel).trim() : ' (vazio)'}`; cor = 'var(--err)'; }
     else if(env && env.periodo !== it.periodo){ status = `Enviada ${quando} com outro período (${_confPeriodo(env.periodo)}) — marque para corrigir`; cor = 'var(--warn-tx)'; }
+    else if(env?.ultimaMensagem?.conteudo){ status = `💬 Cliente respondeu${hora(env.ultimaMensagem.em) ? ' em '+hora(env.ultimaMensagem.em) : ''}: “${String(env.ultimaMensagem.conteudo).replace(/</g,'&lt;').slice(0,200)}” — leia e marque abaixo`; cor = 'var(--ow-tx)'; }
     else if(env){ status = `Já enviada ${quando}${env.user ? ' por '+env.user.split(' ')[0] : ''} — sem resposta`; }
     else if(it.periodo==='nd'){ status = 'Período não definido — se enviar, sai "manhã ou da tarde"'; cor = 'var(--warn-tx)'; }
     else status = 'Pronta para enviar';
@@ -2596,7 +2598,9 @@ function subscribeConfirmacoes(data){
 let _confVerificandoEm = 0;
 async function _confVerificarRespostas(data, forcar){
   const pendentes = Object.values(S.confirmacoes?.[data]||{}).some(c=>c.enviadoEm && !c.resposta);
-  if(!pendentes || isPast(data)) return;
+  // visitas de até 3 dias atrás ainda são conferidas (o cliente às vezes responde depois)
+  const limite = new Date(); limite.setDate(limite.getDate()-3);
+  if(!pendentes || data < limite.toLocaleDateString('en-CA')) return;
   if(!forcar && Date.now() - _confVerificandoEm < 60*1000) return;
   _confVerificandoEm = Date.now();
   try{
@@ -2611,6 +2615,11 @@ function _confSelo(o){
   const quando = c.respostaEm?.toDate ? ' em '+c.respostaEm.toDate().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
   if(c.resposta==='confirmado') return `<div class="osc-conf ok" title="Cliente confirmou a visita${quando}"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2l2-4.2c.9 0 1.5.6 1.5 1.5v1.7h2.6c.7 0 1.2.6 1.1 1.3l-.7 4c-.1.6-.6 1-1.1 1H4.5V6.2z"/><path d="M4.5 6.2H2.6v5.3h1.9"/></svg></div>`;
   if(c.resposta==='reagendar') return `<div class="osc-conf alerta" title="Cliente pediu para reagendar${quando}">!</div>`;
+  // Respondeu escrevendo (não clicou nos botões): alguém precisa ler e marcar na janela de confirmações
+  if(c.ultimaMensagem?.conteudo){
+    const txt = String(c.ultimaMensagem.conteudo).replace(/"/g,'”').replace(/</g,'‹').slice(0,140);
+    return `<div class="osc-conf texto" title="Cliente respondeu: “${txt}” — leia e marque em Confirmar visitas"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/><path d="M4.8 6h4.4M4.8 8.2h3"/></svg></div>`;
+  }
   return `<div class="osc-conf" title="Confirmação enviada por WhatsApp — sem resposta ainda"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/></svg></div>`;
 }
 
@@ -4548,12 +4557,14 @@ async function dashConfCarregar(){
   const el = document.getElementById('dash-conf'); if(!el) return;
   const enviadas = lista.filter(c=>c.enviadoEm);
   const n = r => enviadas.filter(c=>(c.resposta||'')===r).length;
+  const escreveram = enviadas.filter(c=>!c.resposta && c.ultimaMensagem?.conteudo).length;
   const pct = v => enviadas.length ? Math.round(v/enviadas.length*100)+'% das enviadas' : '—';
   const cards = [
     {l:'Enviadas', v:enviadas.length, sub:'confirmações por WhatsApp', cor:'var(--tx)'},
     {l:'👍 Confirmaram', v:n('confirmado'), sub:pct(n('confirmado')), cor:'var(--ok)'},
     {l:'! Pediram reagendamento', v:n('reagendar'), sub:pct(n('reagendar')), cor:n('reagendar')?'var(--warn)':'var(--tx3)'},
-    {l:'Sem resposta', v:n(''), sub:pct(n('')), cor:'var(--tx3)'},
+    {l:'💬 Responderam por escrito', v:escreveram, sub:escreveram ? 'ler e marcar em Confirmar visitas' : pct(0), cor:escreveram?'var(--ow)':'var(--tx3)'},
+    {l:'Sem resposta', v:n('')-escreveram, sub:pct(n('')-escreveram), cor:'var(--tx3)'},
   ];
   el.style.display = '';
   el.innerHTML = `<div class="dc-hdr"><span class="dc-title">Confirmações de visita <span style="font-weight:400;color:var(--tx3)">· WhatsApp</span></span><span style="font-size:10px;color:var(--tx3)">visitas de ${getDashLabel()}</span></div>

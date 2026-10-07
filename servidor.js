@@ -389,6 +389,27 @@ function interpretarResposta(texto) {
   if (/^(confirm|sim\b|ok\b)/.test(t)) return 'confirmado';
   return null;
 }
+// Clique num botão do template de confirmação. A RD registra o clique como mensagem de TEXTO
+// com o rótulo do botão ("Confirmar" / "Preciso de reagendar") — por isso a comparação é exata:
+// frases escritas pelo cliente ("sim, confirmado", "pode ser dia 08") não entram aqui.
+function respostaDoBotao(texto) {
+  const t = semAcento(texto).replace(/[.!]+$/, '');
+  if (t === 'confirmar') return 'confirmado';
+  if (t === 'preciso de reagendar' || t === 'reagendar') return 'reagendar';
+  return null;
+}
+// Guarda a última mensagem que o cliente escreveu depois do envio (sem resposta reconhecida),
+// para alguém ler na janela de confirmações e marcar à mão
+async function gravarUltimaMensagem(linha, ultima, quandoIso) {
+  const conteudo = String(ultima.content || '').slice(0, 300);
+  const atual = linha.dados.ultimaMensagem;
+  if (atual && atual.conteudo === conteudo && atual.em?.$ts === quandoIso) return false; // nada novo
+  const dados = { ...linha.dados, ultimaMensagem: { conteudo, tipo: ultima.type || '', em: { $ts: quandoIso } } };
+  const { error } = await sb.from('documentos').update({ dados, atualizado_em: new Date().toISOString() })
+    .eq('colecao', linha.colecao).eq('id', linha.id);
+  if (error) throw error;
+  return true;
+}
 async function gravarResposta(linha, resposta, via, quandoIso) {
   const dados = { ...linha.dados, resposta, respostaVia: via, respostaEm: { $ts: quandoIso || new Date().toISOString() } };
   const { error } = await sb.from('documentos').update({ dados, atualizado_em: new Date().toISOString() })
@@ -438,7 +459,7 @@ app.post('/api/rd/respostas', async (req, res) => {
   try {
     const linhas = await lerTudo(() => sb.from('documentos').select('colecao,id,dados').eq('colecao', `rotas/${data}/confirmacoes`).order('id'));
     const pendentes = linhas.filter(l => l.dados?.telefone && !l.dados?.resposta).slice(0, 60);
-    let consultadas = 0; const novas = [];
+    let consultadas = 0, textos = 0; const novas = [];
     for (const l of pendentes) {
       const numero = String(l.dados.telefone).replace(/\D/g, '').replace(/^55/, '');
       const r = await fetch(`${RD_API_URL}/v2/contacts/${numero}/exists?channel=whatsapp&country_code=55`, {
@@ -450,14 +471,18 @@ app.post('/api/rd/respostas', async (req, res) => {
       const ultima = (await r.json().catch(() => ({})))?.data?.last_message_data;
       const enviadoEm = Date.parse(l.dados.enviadoEm?.$ts || '') || 0;
       const quando = Date.parse(ultima?.created_at || '') || 0;
-      // Só vale clique em botão feito depois do envio da confirmação
-      if (!ultima || ultima.type !== 'button_reply' || !quando || quando < enviadoEm) continue;
-      const resposta = interpretarResposta(ultima.content);
-      if (!resposta) continue;
-      await gravarResposta(l, resposta, 'consulta', new Date(quando).toISOString());
-      novas.push({ os: String(l.dados.os || l.id), resposta });
+      // Só vale mensagem do cliente posterior ao envio da confirmação
+      if (!ultima || !quando || quando < enviadoEm) continue;
+      const resposta = respostaDoBotao(ultima.content);
+      if (resposta) {
+        await gravarResposta(l, resposta, 'consulta', new Date(quando).toISOString());
+        novas.push({ os: String(l.dados.os || l.id), resposta });
+      } else if (ultima.type === 'text' && await gravarUltimaMensagem(l, ultima, new Date(quando).toISOString())) {
+        // só texto escrito pelo cliente; clique no menu do chatbot e imagem não dizem nada sobre a visita
+        textos++;
+      }
     }
-    res.json({ verificado: true, pendentes: pendentes.length, consultadas, novas });
+    res.json({ verificado: true, pendentes: pendentes.length, consultadas, novas, textos });
   } catch (e) {
     console.error('RD respostas:', e.message);
     res.status(502).json({ error: { message: 'Falha ao consultar o RD Conversas: ' + e.message } });
