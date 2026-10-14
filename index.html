@@ -308,6 +308,13 @@ body.somente-leitura .osc{cursor:pointer}
 .otag-m{background:var(--warn-bg);color:var(--warn-tx)}
 .otag-t{background:var(--ok-bg);color:var(--ok-tx)}
 .otag-nd{background:var(--surf2);color:var(--tx3)}
+/* Aviso para o técnico (produto antigo, etc.) — também sai no romaneio */
+.otag-aviso{background:var(--warn);color:#fff;cursor:help}
+.aviso-opcao{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--brd);border-radius:var(--r);cursor:pointer;background:var(--surf2)}
+.aviso-opcao:has(input:checked){border-color:var(--warn);background:var(--warn-bg)}
+.aviso-opcao input{width:16px;height:16px;margin-top:1px;cursor:pointer;flex-shrink:0}
+.aviso-opcao b{display:block;font-size:13px;font-weight:600;color:var(--tx)}
+.aviso-opcao span{display:block;font-size:11.5px;color:var(--tx2);margin-top:2px;line-height:1.5}
 .osc-val{font-size:9px;color:var(--ok-tx);font-weight:600;white-space:nowrap;margin-top:2px}
 .empty-slot{flex-shrink:0;width:110px;min-height:88px;border:1.5px dashed var(--brd);border-radius:var(--r);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:var(--tx3);font-size:10.5px;cursor:pointer;transition:all .12s}
 .empty-slot:hover,.empty-slot.dov{border-color:var(--ow);color:var(--ow);background:var(--ow-bg)}
@@ -869,6 +876,12 @@ body.somente-leitura .osc{cursor:pointer}
   <div class="drw-body">
     <div class="dpanel on" id="dp-info">
       <div class="dsect">Resumo</div><div class="di-grid" id="drw-grid"></div>
+      <div class="dsect">Aviso para o técnico <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">(sai no romaneio)</span></div>
+      <label class="aviso-opcao">
+        <input type="checkbox" id="de-aviso-antigo">
+        <div><b>Produto com mais de 5 anos</b><span>Pode não haver peças ou haver poucas peças disponíveis.</span></div>
+      </label>
+      <div class="dfield"><span class="dlbl">Outro aviso</span><textarea class="dta" id="de-aviso" placeholder="Ex: Produto fora de linha"></textarea></div>
       <div class="dsect">Editar dados</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="dfield"><span class="dlbl">Modelo</span><input class="dinp" id="de-modelo"></div>
@@ -938,6 +951,7 @@ body.somente-leitura .osc{cursor:pointer}
     <div class="modal-tabs">
       <div class="modal-tab on" id="mos-tab-os" onclick="mosTab('os',this)">Dados da OS</div>
       <div class="modal-tab" id="mos-tab-pecas" onclick="mosTab('pecas',this)">Peças <span class="tab-badge" id="mos-pecas-badge">0</span></div>
+      <div class="modal-tab" id="mos-tab-avisos" onclick="mosTab('avisos',this)">⚠ Avisos <span class="tab-badge" id="mos-avisos-badge" style="display:none">!</span></div>
     </div>
     <!-- PAINEL OS -->
     <div class="modal-panel on" id="mos-panel-os" style="overflow-y:auto;flex:1">
@@ -980,6 +994,16 @@ body.somente-leitura .osc{cursor:pointer}
       </div>
       <div id="mos-parts-wrap"><div class="parts-empty">🔩 Nenhuma peça adicionada.<br><span style="font-size:11px">Digite o código acima e pressione Enter.</span></div></div>
       <div class="parts-summary" id="mos-parts-summary"></div>
+    </div>
+    <!-- PAINEL AVISOS (sai em destaque no romaneio, para o técnico) -->
+    <div class="modal-panel" id="mos-panel-avisos" style="padding:16px 18px;overflow-y:auto;flex:1">
+      <div style="font-size:12px;color:var(--tx3);margin-bottom:12px;line-height:1.5">Os avisos marcados aqui aparecem em destaque no <b>romaneio</b>, logo abaixo da OS, para o técnico saber antes de sair.</div>
+      <label class="aviso-opcao">
+        <input type="checkbox" id="m-aviso-antigo" onchange="mosAvisosBadge()">
+        <div><b>Produto com mais de 5 anos</b><span>Pode não haver peças ou haver poucas peças disponíveis para este modelo.</span></div>
+      </label>
+      <div style="margin-top:14px"><label class="lbl">Outro aviso para o técnico</label>
+        <textarea class="inp nm" id="m-aviso" style="resize:vertical;min-height:64px" placeholder="Ex: Produto de 2017, fora de linha — levar peça usada se possível" oninput="mosAvisosBadge()"></textarea></div>
     </div>
     <div class="mfoot">
       <div style="font-size:12px;color:var(--tx3)" id="mos-footer-info"></div>
@@ -2881,7 +2905,7 @@ function makeCard(o){
     ${o.valor?('<div class="osc-val">'+fmtBRL(o.valor)+'</div>'):''}
     <div class="osc-foot">
       <div class="osc-bairro" title="${fmtEndereco(o)}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 11s-4-3.5-4-6a4 4 0 018 0c0 2.5-4 6-4 6z"/><circle cx="6" cy="5" r="1.3"/></svg>${o.cep||o.bairro||'—'}</div>
-      <div class="osc-tags"><span class="otag ${o.periodo==='manha'?'otag-m':o.periodo==='tarde'?'otag-t':'otag-nd'}">${o.periodo==='manha'?'Mnh':o.periodo==='tarde'?'Trd':'N/D'}</span></div>
+      <div class="osc-tags">${avisosOS(o).length?`<span class="otag otag-aviso" title="${_avisoEsc(avisosOS(o).join('\n'))}">⚠ ${o.aviso_antigo?'+5 anos':'Aviso'}</span> `:''}<span class="otag ${o.periodo==='manha'?'otag-m':o.periodo==='tarde'?'otag-t':'otag-nd'}">${o.periodo==='manha'?'Mnh':o.periodo==='tarde'?'Trd':'N/D'}</span></div>
     </div>`;
   card.insertAdjacentHTML('beforeend', _confSelo(o));
   card.addEventListener('dragstart',()=>{draggingId=o.id;setTimeout(()=>card.classList.add('dragging'),0)});
@@ -2939,6 +2963,7 @@ function openDrawer(id){
   set('de-modelo',o.modelo);set('de-serial',o.serial||'');set('de-defeito',o.defeito);set('de-solucao',o.solucao);
   set('de-bairro',o.bairro);set('de-cep',o.cep);set('de-obs',o.obs);
   set('de-tel',o.tel);set('de-nome-cliente',o.nome_cliente||'');set('de-endereco',o.endereco);set('de-complemento',o.complemento);
+  document.getElementById('de-aviso-antigo').checked=!!o.aviso_antigo; set('de-aviso',o.aviso);
   // Carregar peças da OS
   drwPecas=(o.pecas_lista||[]).map(p=>({...p,id:Date.now()+Math.random()}));
   drwPecasRender();
@@ -3038,6 +3063,8 @@ async function saveDrawer(){
       nome_cliente:document.getElementById('de-nome-cliente')?.value||'',
       endereco:document.getElementById('de-endereco').value,
       complemento:document.getElementById('de-complemento').value,
+      aviso_antigo:document.getElementById('de-aviso-antigo').checked,
+      aviso:document.getElementById('de-aviso').value.trim(),
       status:drwState.status,
       ftc:drwState.ftc,
       valor:document.getElementById('drw-valor').value,
@@ -3120,6 +3147,24 @@ function mosTab(tab, el){
   document.getElementById('mos-panel-'+tab).classList.add('on');
   if(tab==='pecas') setTimeout(()=>document.getElementById('mos-codigo').focus(),50);
 }
+
+/* ══ AVISOS PARA O TÉCNICO ══
+   aviso_antigo: produto com mais de 5 anos (pode faltar peça) · aviso: texto livre.
+   Aparecem no card, no drawer e em destaque no romaneio. */
+const AVISO_ANTIGO_TXT = 'Produto com mais de 5 anos — pode não haver peças ou haver poucas';
+function avisosOS(o){
+  const l = [];
+  if(o?.aviso_antigo) l.push(AVISO_ANTIGO_TXT);
+  if(String(o?.aviso||'').trim()) l.push(String(o.aviso).trim());
+  return l;
+}
+const _avisoEsc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function mosAvisosBadge(){
+  const n = avisosOS({ aviso_antigo:document.getElementById('m-aviso-antigo').checked, aviso:document.getElementById('m-aviso').value }).length;
+  const b = document.getElementById('mos-avisos-badge');
+  b.textContent = n; b.style.display = n ? '' : 'none';
+}
+window.mosAvisosBadge = mosAvisosBadge;
 
 function mosPecaAdd(){
   const codigo=document.getElementById('mos-codigo').value.trim().toUpperCase();
@@ -3235,6 +3280,10 @@ function _preencherFormOS(u){
   set('m-endereco',   u.endereco);
   set('m-complemento',u.complemento);
   set('m-obs',        u.obs);
+  // O aviso acompanha o produto: se a OS já tinha aviso, ele volta preenchido
+  if(u.aviso_antigo) document.getElementById('m-aviso-antigo').checked=true;
+  set('m-aviso',      u.aviso);
+  mosAvisosBadge();
   if((u.pecas_lista||[]).length>0){
     mosPecas=u.pecas_lista.map(p=>({...p,id:Date.now()+Math.random()}));
     mosPecasRender();
@@ -3259,8 +3308,11 @@ function openModalOS(){
   // Reset abas
   document.getElementById('mos-tab-os').classList.add('on');
   document.getElementById('mos-tab-pecas').classList.remove('on');
+  document.getElementById('mos-tab-avisos').classList.remove('on');
   document.getElementById('mos-panel-os').classList.add('on');
   document.getElementById('mos-panel-pecas').classList.remove('on');
+  document.getElementById('mos-panel-avisos').classList.remove('on');
+  mosAvisosBadge();
   document.getElementById('modal-os').classList.add('on');
 }
 
@@ -3345,6 +3397,8 @@ async function saveOS(){
       endereco:document.getElementById('m-endereco').value||'',
       complemento:document.getElementById('m-complemento').value||'',
       pecas_lista:mosPecas.map(({id:_,...p})=>p),
+      aviso_antigo:document.getElementById('m-aviso-antigo').checked,
+      aviso:document.getElementById('m-aviso').value.trim(),
       tat:'',
       status:'em_progresso',ftc:'nao',valor:'',pecas:mosPecas.length>0?'sim':'nao',obs_sel:'',nota:'',
       posicao:all.length,
@@ -3355,7 +3409,8 @@ async function saveOS(){
       await logAudit(osNum,'criacao',`Criada para ${S.tecnicos.find(t=>t.id===techId)?.nome||techId}`,'warn');
       closeModal('modal-os');
       mosPecas=[];
-      ['m-os','m-modelo','m-serial','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-nome-cliente','m-endereco','m-complemento','m-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      ['m-os','m-modelo','m-serial','m-defeito','m-solucao','m-bairro','m-cep','m-tel','m-nome-cliente','m-endereco','m-complemento','m-obs','m-aviso'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      document.getElementById('m-aviso-antigo').checked=false; mosAvisosBadge();
       toast('OS '+osNum+' criada','ok');
     }catch(e){toast('Erro ao criar OS: '+e.message,'err');}
   };
@@ -3406,7 +3461,8 @@ function _diffOS(antes, depois){
     status:'Status', techId:'Técnico', periodo:'Período', tipo:'Tipo',
     modelo:'Modelo', defeito:'Defeito', solucao:'Solução', valor:'Valor',
     ftc:'FTC', pecas:'Peças', faturado:'Faturado', nome_cliente:'Cliente',
-    tel:'Telefone', endereco:'Endereço', bairro:'Bairro', cep:'CEP', prio:'Prioridade'
+    tel:'Telefone', endereco:'Endereço', bairro:'Bairro', cep:'CEP', prio:'Prioridade',
+    aviso_antigo:'Aviso +5 anos', aviso:'Aviso'
   };
   const LABELS = {
     status:v=>_statusLabel(v),
@@ -3414,11 +3470,13 @@ function _diffOS(antes, depois){
     techId:v=>{const t=S.tecnicos.find(x=>x.id===v);return t?t.nome:(v||'—');},
     ftc:v=>v==='sim'?'Sim':'Não', pecas:v=>v==='sim'?'Sim':'Não', faturado:v=>v==='sim'?'Sim':'Não',
     prio:v=>(v||'').toUpperCase()||'—',
+    aviso_antigo:v=>v?'Sim':'Não',
   };
   const mudancas = [];
   for(const [campo,label] of Object.entries(CAMPOS)){
-    const va = antes?.[campo] ?? '';
-    const vb = depois?.[campo] ?? '';
+    const bool = campo==='aviso_antigo'; // OS antigas não têm o campo: ausente = false
+    const va = bool ? !!antes?.[campo] : (antes?.[campo] ?? '');
+    const vb = bool ? !!depois?.[campo] : (depois?.[campo] ?? '');
     if(String(va) !== String(vb)){
       const fmt = LABELS[campo] || (x=>x||'—');
       mudancas.push({ campo: label, de: String(fmt(va)), para: String(fmt(vb)) });
@@ -4171,7 +4229,7 @@ function openRomaneioComOrdens(t, aux, auxNome, dtFmt, ordensKm, os){
           <td style="font-size:8px">${o.obs||o.obs_sel||'—'}</td>
           <td style="font-size:8.5px;text-align:center;font-weight:600">${o.tat||''}</td>
           <td style="font-size:7.5px">${o.nota||'—'}</td>
-        </tr>`;
+        </tr>${avisosOS(o).length?`<tr><td colspan="10" style="background:${rowBg};padding:2px 5px 4px"><div style="background:#fff3cd;border:1.5px solid #000;border-radius:2px;padding:3px 6px;font-size:8.5px;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact">⚠ ATENÇÃO TÉCNICO — OS ${o.os}: ${avisosOS(o).map(_avisoEsc).join(' · ')}</div></td></tr>`:''}`;
       }).join('') : `<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;font-size:11px">Nenhuma OS atribuída a este técnico para ${dtFmt}.</td></tr>`}
     </tbody>
   </table>
