@@ -361,6 +361,7 @@ body.somente-leitura .osc{cursor:pointer}
 .btn-save{flex:1;padding:9px;background:var(--tx);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity var(--anim-fast),transform var(--anim-fast) var(--ease-spring);position:relative;overflow:hidden}
 .btn-save:hover{opacity:.88;transform:translateY(-1px)}
 .btn-save:active{transform:translateY(0) scale(.98)}
+.btn-save:disabled{opacity:.4;cursor:not-allowed;transform:none}
 .btn-ghost{padding:9px 14px;border:1px solid var(--brd);border-radius:6px;background:none;font-size:13px;cursor:pointer;color:var(--tx2);transition:all .12s}
 .btn-ghost:hover{background:var(--bg);color:var(--tx)}
 .btn-del{padding:9px 12px;border:1px solid #fca5a5;border-radius:6px;background:none;font-size:12px;cursor:pointer;color:var(--err);transition:all .12s}
@@ -1080,7 +1081,23 @@ body.somente-leitura .osc{cursor:pointer}
       </div>
       <button class="mclose" onclick="fecharFaltaPeca()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
     </div>
-    <div class="mbody s1" id="fp-body" style="gap:0"></div>
+    <div class="mbody s1" style="gap:0">
+      <!-- Envio avulso: digita o número; só envia se o contato existir no RD Conversas -->
+      <div style="border:1px solid var(--brd);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Enviar para um número</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px">
+          <div><span class="lbl">Telefone</span><input class="inp nm" id="fp-av-tel" placeholder="(11) 91234-5678" inputmode="tel" oninput="_fpAvTel()"></div>
+          <div><span class="lbl">Nome do cliente</span><input class="inp nm" id="fp-av-nome" placeholder="Maria" oninput="_fpAvBotao()"></div>
+          <div><span class="lbl">Nº da OS</span><input class="inp nm" id="fp-av-os" placeholder="417574099" oninput="_fpAvBotao()"></div>
+          <div><span class="lbl">Modelo</span><input class="inp nm" id="fp-av-modelo" placeholder="WF18T6500GV"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div id="fp-av-status" style="flex:1;font-size:11.5px;color:var(--tx3);line-height:1.45">Digite o telefone: o Rotas confere se o contato está cadastrado no RD Station.</div>
+          <button class="btn-save" style="flex:none;padding:7px 14px" id="fp-av-enviar" onclick="enviarFaltaPecaAvulso()" disabled>Enviar</button>
+        </div>
+      </div>
+      <div id="fp-body"></div>
+    </div>
     <div class="mfoot">
       <button class="btn-ghost" onclick="fecharFaltaPeca()" id="fp-cancelar">Cancelar</button>
       <button class="btn-save" style="flex:none;padding:9px 16px" id="fp-enviar" onclick="enviarFaltaPeca()">Avisar selecionados</button>
@@ -2616,6 +2633,7 @@ let _fpEnvio = null; // { itens:[{o, data, tec, chave, tel, peca, enviado, marca
 const _fpProduto = o => String(o.modelo||'').trim() || 'equipamento';
 
 window.abrirFaltaPeca = async function(){
+  _fpAvLimpar(true);
   document.getElementById('fp-body').innerHTML = '<div class="ia-loading" style="color:var(--tx2);padding:14px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span>Buscando as OS pendentes dos últimos 30 dias...</div>';
   document.getElementById('fp-enviar').disabled = true;
   openModal('modal-fp');
@@ -2694,6 +2712,90 @@ function _fpRender(){
   _fpBotao();
 }
 
+/* ── Envio avulso: o usuário digita o número. Só envia se o contato já existir no RD Conversas
+   (o servidor confere de novo na hora do envio). ── */
+let _fpAv = { tel:null, contato:null, verificando:false, enviando:false }; // contato: { tel, cadastrado, nome }
+let _fpAvTimer = null;
+const _fpAvEl = id => document.getElementById('fp-av-'+id);
+function _fpAvStatus(html, cor){ const s=_fpAvEl('status'); s.innerHTML = html; s.style.color = cor || 'var(--tx3)'; }
+function _fpAvLimpar(tudo){
+  ['tel','nome','os','modelo'].forEach(k => { if(tudo || k!=='tel') _fpAvEl(k).value=''; });
+  _fpAv = { tel:null, contato:null, verificando:false, enviando:false };
+  if(tudo) _fpAvStatus('Digite o telefone: o Rotas confere se o contato está cadastrado no RD Station.');
+  _fpAvBotao();
+}
+window._fpAvTel = function(){
+  clearTimeout(_fpAvTimer);
+  const tel = _confTelefone(_fpAvEl('tel').value);
+  _fpAv.tel = tel; _fpAv.contato = null; _fpAvBotao();
+  if(!tel){ _fpAvStatus(_fpAvEl('tel').value.trim() ? 'Telefone incompleto — DDD + número.' : 'Digite o telefone: o Rotas confere se o contato está cadastrado no RD Station.'); return; }
+  // Se o número é de uma OS pendente da lista, já preenche o resto
+  const it = _fpEnvio?.itens.find(i => i.tel === tel);
+  if(it){
+    if(!_fpAvEl('nome').value.trim()) _fpAvEl('nome').value = it.o.nome_cliente || '';
+    if(!_fpAvEl('os').value.trim()) _fpAvEl('os').value = it.o.os || '';
+    if(!_fpAvEl('modelo').value.trim()) _fpAvEl('modelo').value = it.o.modelo || '';
+  }
+  _fpAvTimer = setTimeout(()=>_fpAvVerificar(tel), 600);
+};
+async function _fpAvVerificar(tel){
+  if(_fpAv.tel !== tel) return;
+  _fpAv.verificando = true; _fpAv.contato = null; _fpAvBotao();
+  _fpAvStatus('<span class="ia-loading" style="font-size:11.5px"><span class="spin" style="width:10px;height:10px;border-color:var(--brd2);border-top-color:var(--tx2)"></span>Conferindo no RD Station...</span>');
+  try{
+    const r = await fetch('/api/rd/contato?telefone='+encodeURIComponent(tel), {headers: await _authHeader()});
+    const j = await r.json().catch(()=>({}));
+    if(_fpAv.tel !== tel) return; // o número mudou enquanto consultava
+    if(!r.ok) throw new Error(j.error?.message || 'HTTP '+r.status);
+    _fpAv.contato = { tel, ...j };
+    if(j.cadastrado){
+      if(!_fpAvEl('nome').value.trim() && j.nome) _fpAvEl('nome').value = j.nome;
+      _fpAvStatus(`✓ Contato cadastrado no RD Station${j.nome ? ': <b>'+_avisoEsc(j.nome)+'</b>' : ''}`, 'var(--ok-tx)');
+    } else {
+      _fpAvStatus(`<b>✗ Este número não está cadastrado no RD Station.</b> Faça o cadastro do contato no RD Conversas antes de enviar. <a style="color:var(--ow);cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="_fpAvVerificar('${tel}')">Já cadastrei, conferir de novo</a>`, 'var(--err)');
+    }
+  }catch(e){
+    if(_fpAv.tel === tel) _fpAvStatus('Não foi possível conferir no RD Station: '+_avisoEsc(e.message), 'var(--err)');
+  }finally{
+    if(_fpAv.tel === tel){ _fpAv.verificando = false; _fpAvBotao(); }
+  }
+}
+window._fpAvBotao = function(){
+  const btn = _fpAvEl('enviar'); if(!btn) return;
+  const pronto = _fpAv.contato?.cadastrado && _fpAv.contato.tel === _fpAv.tel && _fpAvEl('nome').value.trim() && _fpAvEl('os').value.trim();
+  btn.disabled = !pronto || _fpAv.verificando || _fpAv.enviando || !_fpEnvio?.aprovado;
+  btn.textContent = _fpAv.enviando ? 'Enviando...' : 'Enviar';
+  btn.title = !_fpEnvio?.aprovado ? 'Aguardando a aprovação do template' : !pronto ? 'Preencha telefone (cadastrado no RD), nome e nº da OS' : '';
+};
+window._fpAvVerificar = _fpAvVerificar;
+window.enviarFaltaPecaAvulso = async function(){
+  if(_fpAvEl('enviar').disabled) return;
+  const tel = _fpAv.tel, os = _fpAvEl('os').value.trim(), nome = _fpAvEl('nome').value.trim();
+  const modelo = _fpAvEl('modelo').value.trim();
+  _fpAv.enviando = true; _fpAvBotao();
+  try{
+    const resp = await _cobliApi('/api/rd/falta-peca', { telefone: tel, variaveis: [_confNome(nome), os, modelo || 'equipamento'] });
+    const it = _fpEnvio?.itens.find(i => String(i.o.os) === os);
+    const chave = _confChave({os});
+    const registro = { os, telefone:tel, data:it?.data||TODAY_STR, techId:it?.o.techId||'', mensagemId:resp.id||null, avulso:true,
+      user:window._currentUser?.nome||'Sistema', uid:getUID()||'' };
+    const {setDoc,doc,serverTimestamp} = getFB();
+    await setDoc(doc(getDB(),'avisos_falta_peca',chave), {...registro, enviadoEm:serverTimestamp()});
+    await logAudit(os, 'edicao', 'Aviso de falta de peça enviado por WhatsApp (número digitado)', 'info', registro.data);
+    if(it){ it.enviado = {...registro, enviadoEm:{ toDate:()=>new Date() }}; it.estado = 'ok'; it.marcado = false; _fpRender(); }
+    _fpAvLimpar(true);
+    _fpAvStatus(`✓ Aviso enviado para ${_confMascara(tel)} (OS ${_avisoEsc(os)}).`, 'var(--ok-tx)');
+    toast('Aviso de falta de peça enviado','ok');
+  }catch(e){
+    _fpAvStatus(e.status === 422
+      ? `<b>✗ Não enviado: este número não está cadastrado no RD Station.</b> Faça o cadastro do contato no RD Conversas antes de enviar. <a style="color:var(--ow);cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="_fpAvVerificar('${tel}')">Já cadastrei, conferir de novo</a>`
+      : '✗ Não enviado: '+_avisoEsc(e.message), 'var(--err)');
+    if(e.status === 422) _fpAv.contato = { tel, cadastrado:false };
+  }finally{
+    _fpAv.enviando = false; _fpAvBotao();
+  }
+};
+
 window._fpMarcar = function(sim){
   const E = _fpEnvio; if(!E || E.enviando) return;
   E.itens.forEach(it => { it.marcado = sim && it.peca && !!it.tel && !it.enviado && it.estado !== 'ok'; });
@@ -2706,6 +2808,7 @@ window._fpBotao = function(){
   btn.disabled = E.enviando || !n || !E.aprovado;
   btn.textContent = E.enviando ? 'Enviando...' : !E.aprovado ? 'Aguardando aprovação do template' : n ? `Avisar ${n} cliente${n>1?'s':''}` : 'Avisar selecionados';
   document.getElementById('fp-cancelar').textContent = E.itens.some(it=>it.estado==='ok') ? 'Fechar' : 'Cancelar';
+  _fpAvBotao();
 };
 
 window.enviarFaltaPeca = async function(){
@@ -2733,7 +2836,8 @@ window.enviarFaltaPeca = async function(){
       console.error('Falta de peça (OS '+it.o.os+'):', e);
     }
     _fpRender();
-    await new Promise(r=>setTimeout(r,700)); // a RD aceita 100 requisições a cada 2 minutos
+    // a RD aceita 100 requisições a cada 2 minutos, e cada envio faz duas (confere o contato + envia)
+    await new Promise(r=>setTimeout(r,1300));
   }
   E.enviando = false; _fpRender();
   toast(ok === fila.length ? `${ok} aviso(s) de falta de peça enviado(s)` : `${ok} de ${fila.length} enviado(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
@@ -5894,7 +5998,7 @@ window.capturarTela = async function(elementId, nome){
 /* ── SOMENTE VISUALIZAÇÃO: toda ação que grava é barrada na entrada ── */
 ['saveDrawer','saveOS','deleteOS','dropOnLane','openModalOS','clonePrompt','replicarPendentes',
  'abrirTravaModal','salvarTrava','removerTrava','abrirNotaPend','salvarNotaPend','autoSaveNotaPend',
- 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli','abrirConfirmacoes','enviarConfirmacoes','marcarRespostaConf','abrirFaltaPeca','enviarFaltaPeca',
+ 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli','abrirConfirmacoes','enviarConfirmacoes','marcarRespostaConf','abrirFaltaPeca','enviarFaltaPeca','enviarFaltaPecaAvulso',
  'openTecForm','removeTec','reativarTec','openAuxForm','openTrocaAux',
  'openUserForm','resetUserPassword','removeUser','editCargo','openCargoForm',
  'openTipoForm','removeTipo','restaurarTiposPadrao'].forEach(nome=>{

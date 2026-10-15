@@ -384,6 +384,7 @@ async function enviarTemplateRD(res, rotulo, telefone, templateId, variaveis) {
 // POST /api/rd/falta-peca  { telefone, variaveis: [nome, os, produto] }
 // O id do template vem de RD_TEMPLATE_FALTA_PECA (Render → Environment) ou, sem ela, é procurado
 // pelo nome na lista da RD — que só traz templates aprovados pela Meta.
+// Só envia para números já cadastrados como contato no RD Conversas (senão responde 422).
 // ══════════════════════════════════════════════════════════════
 const RD_TEMPLATE_FALTA_PECA_NOME = env('RD_TEMPLATE_FALTA_PECA_NOME') || 'rotasapppc_1792093166';
 let _faltaPecaTemplate = { id: env('RD_TEMPLATE_FALTA_PECA') || null, em: 0 };
@@ -399,6 +400,28 @@ async function templateFaltaPeca() {
   if (t) _faltaPecaTemplate.id = t.id;
   return _faltaPecaTemplate.id;
 }
+
+// O contato existe no RD Conversas? → { cadastrado, nome } (a RD responde 404 quando não existe)
+async function contatoRD(telefone) {
+  const numero = telefone.replace(/^\+55/, '');
+  const r = await fetch(`${RD_API_URL}/v2/contacts/${numero}/exists?channel=whatsapp&country_code=55`,
+    { headers: { Authorization: 'Bearer ' + RD_API_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
+  if (r.status === 404) return { cadastrado: false, nome: '' };
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j?.error?.message || (typeof j?.error === 'string' ? j.error : '') || `RD Conversas respondeu HTTP ${r.status} ao consultar o contato`);
+  return { cadastrado: true, nome: String(j?.data?.full_name || '').trim() };
+}
+const MSG_NAO_CADASTRADO = 'Número não cadastrado no RD Station. Cadastre o contato no RD Conversas e envie de novo.';
+
+// GET /api/rd/contato?telefone=+55DDDNÚMERO → { cadastrado, nome }
+app.get('/api/rd/contato', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  const telefone = String(req.query.telefone || '');
+  if (!/^\+55\d{10,11}$/.test(telefone)) return res.status(400).json({ error: { message: 'Telefone inválido.' } });
+  try { res.json(await contatoRD(telefone)); }
+  catch (e) { res.status(502).json({ error: { message: e.message } }); }
+});
 
 app.get('/api/rd/falta-peca', async (req, res) => {
   if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
@@ -419,6 +442,10 @@ app.post('/api/rd/falta-peca', async (req, res) => {
   try { id = await templateFaltaPeca(); }
   catch (e) { return res.status(502).json({ error: { message: e.message } }); }
   if (!id) return res.status(409).json({ error: { message: 'O template de falta de peça ainda não foi aprovado pela Meta.' } });
+  // Só envia para quem já é contato no RD Conversas
+  try {
+    if (!(await contatoRD(telefone)).cadastrado) return res.status(422).json({ error: { message: MSG_NAO_CADASTRADO, codigo: 'nao_cadastrado' } });
+  } catch (e) { return res.status(502).json({ error: { message: e.message } }); }
   await enviarTemplateRD(res, 'falta-peca', telefone, id, variaveis);
 });
 
