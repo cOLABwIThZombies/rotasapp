@@ -695,6 +695,7 @@ body.somente-leitura .osc{cursor:pointer}
         <div class="fchip" id="fc-ow" onclick="setFilter('ow',this)">OW</div>
         <div class="fchip" id="fc-pend" onclick="setFilter('pend',this)">Pendentes</div>
         <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirConfirmacoes()" title="Envia aos clientes, pelo WhatsApp, a confirmação da visita desta data"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/><path d="M4.8 7.2l1.5 1.5 3-3.2"/></svg>Confirmar visitas</button>
+        <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirFaltaPeca()" title="Avisa por WhatsApp os clientes com OS pendente por falta de peça"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12.5l.9-2.9A5.5 5.5 0 1 1 4.5 11.7l-3 .8z"/><path d="M7 4.3v3M7 9.4v.1"/></svg>Falta de peça</button>
         <button class="btn-ghost so-edicao" style="font-size:12px;padding:5px 11px;white-space:nowrap;display:flex;align-items:center;gap:5px" onclick="abrirEnvioCobli()" title="Cria na Cobli as rotas desta data, na ordem do quadro"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 1.5L6 8M12.5 1.5l-4 11-2.5-4.5L1.5 5.5l11-4z"/></svg>Enviar para a Cobli</button>
         <button class="btn-new" onclick="openModalOS()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 2v10M2 7h10"/></svg>Nova OS</button>
       </div>
@@ -1065,6 +1066,24 @@ body.somente-leitura .osc{cursor:pointer}
     <div class="mfoot">
       <button class="btn-ghost" onclick="fecharConfirmacoes()" id="conf-cancelar">Cancelar</button>
       <button class="btn-save" style="flex:none;padding:9px 16px" id="conf-enviar" onclick="enviarConfirmacoes()">Enviar selecionadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVISO DE FALTA DE PEÇA POR WHATSAPP -->
+<div class="moverlay" id="modal-fp" onclick="if(event.target===this)fecharFaltaPeca()">
+  <div class="modal" style="width:600px">
+    <div class="mhdr">
+      <div>
+        <span class="mtitle">Avisar falta de peça por WhatsApp</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:3px">OS pendentes dos últimos 30 dias</div>
+      </div>
+      <button class="mclose" onclick="fecharFaltaPeca()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <div class="mbody s1" id="fp-body" style="gap:0"></div>
+    <div class="mfoot">
+      <button class="btn-ghost" onclick="fecharFaltaPeca()" id="fp-cancelar">Cancelar</button>
+      <button class="btn-save" style="flex:none;padding:9px 16px" id="fp-enviar" onclick="enviarFaltaPeca()">Avisar selecionados</button>
     </div>
   </div>
 </div>
@@ -2584,6 +2603,140 @@ window.enviarConfirmacoes = async function(){
   }
   E.enviando = false; _confRender();
   toast(ok === fila.length ? `${ok} confirmação(ões) enviada(s) por WhatsApp` : `${ok} de ${fila.length} enviada(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
+};
+
+/* ════════════════════════════════════════════════════════
+   AVISO DE FALTA DE PEÇA POR WHATSAPP (RD Station Conversas)
+   Lista as OS pendentes dos últimos 30 dias (a ocorrência mais recente de cada OS) e envia
+   o template "precisamos de uma peça que está em falta… ainda não temos uma data definida".
+   Já vêm marcadas as pendentes com "Peça solicitada" que ainda não foram avisadas.
+   O que foi enviado fica em avisos_falta_peca/<os> (para não avisar duas vezes sem querer).
+════════════════════════════════════════════════════════ */
+let _fpEnvio = null; // { itens:[{o, data, tec, chave, tel, peca, enviado, marcado, estado, msg}], enviando, aprovado }
+const _fpProduto = o => String(o.modelo||'').trim() || 'equipamento';
+
+window.abrirFaltaPeca = async function(){
+  document.getElementById('fp-body').innerHTML = '<div class="ia-loading" style="color:var(--tx2);padding:14px 0"><span class="spin" style="border-color:var(--brd2);border-top-color:var(--tx2)"></span>Buscando as OS pendentes dos últimos 30 dias...</div>';
+  document.getElementById('fp-enviar').disabled = true;
+  openModal('modal-fp');
+  try{
+    const {getDocs,collection} = getFB();
+    const datas = [];
+    for(let i=0;i<=30;i++){ const d=new Date(TODAY_STR+'T12:00:00'); d.setDate(d.getDate()-i); datas.push(d.toLocaleDateString('en-CA')); }
+    const [dias, avisos, tpl] = await Promise.all([
+      Promise.all(datas.map(ds => getDocs(collection(getDB(),`rotas/${ds}/ordens`)).then(s=>s.docs.map(d=>({...d.data(), id:d.id, _data:ds}))).catch(()=>[]))),
+      getDocs(collection(getDB(),'avisos_falta_peca')),
+      fetch('/api/rd/falta-peca', {headers: await _authHeader()}).then(r=>r.json()).catch(e=>({error:{message:e.message}})),
+    ]);
+    const enviados = {}; avisos.docs.forEach(d => { enviados[d.id] = d.data(); });
+    // A pendente é replicada todo dia: vale a ocorrência mais recente de cada OS (se ela foi finalizada depois, sai da lista)
+    const ultima = {};
+    dias.flat().forEach(o => { const k=_confChave(o); if(o.os && (!ultima[k] || o._data > ultima[k]._data)) ultima[k] = o; });
+    const itens = Object.entries(ultima).filter(([,o])=>o.status==='pendente').map(([chave,o]) => {
+      const peca = o.obs_sel === 'Peça solicitada';
+      const it = { o, data:o._data, tec:S.tecnicos.find(t=>t.id===o.techId), chave, tel:_confTelefone(o.tel), peca, enviado:enviados[chave]||null, estado:'', msg:'' };
+      it.marcado = peca && !!it.tel && !it.enviado;
+      return it;
+    }).sort((a,b) => (b.peca-a.peca) || (b.data.localeCompare(a.data)) || String(a.o.os).localeCompare(String(b.o.os)));
+    _fpEnvio = { itens, enviando:false, aprovado: !!tpl.aprovado, erroTpl: tpl.error?.message || '' };
+    _fpRender();
+  }catch(e){
+    document.getElementById('fp-body').innerHTML = `<div style="font-size:12.5px;color:var(--err);padding:10px 0">Não foi possível carregar as OS pendentes: ${e.message}</div>`;
+  }
+};
+
+window.fecharFaltaPeca = function(){
+  if(_fpEnvio?.enviando) return;
+  closeModal('modal-fp'); _fpEnvio = null;
+};
+
+function _fpRender(){
+  const E = _fpEnvio; if(!E) return;
+  const hora = ts => ts?.toDate ? ts.toDate().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+  let grupo = null;
+  const linhas = E.itens.map((it,i) => {
+    const o = it.o, env = it.enviado;
+    let status, cor = 'var(--tx3)';
+    if(it.estado==='enviando'){ status = '<span class="ia-loading" style="color:var(--tx2);font-size:11px"><span class="spin" style="width:10px;height:10px;border-color:var(--brd2);border-top-color:var(--tx2)"></span>Enviando...</span>'; }
+    else if(it.estado==='erro'){ status = '✗ '+it.msg; cor = 'var(--err)'; }
+    else if(it.estado==='ok'){ status = '✓ Aviso enviado agora'; cor = 'var(--ok-tx)'; }
+    else if(!it.tel){ status = `Telefone inválido${o.tel ? ': '+String(o.tel).trim() : ' (vazio)'}`; cor = 'var(--err)'; }
+    else if(env){ status = `Já avisado ${hora(env.enviadoEm)}${env.user ? ' por '+env.user.split(' ')[0] : ''} — marque para avisar de novo`; cor = 'var(--warn-tx)'; }
+    else status = it.peca ? 'Pronta para enviar' : 'Pendente por outro motivo — marque se for falta de peça';
+    const g = it.peca ? 'Peça solicitada' : 'Outras pendentes';
+    const cab = g !== grupo ? `<div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 2px">${g}</div>` : '';
+    grupo = g;
+    const motivo = [o.obs_sel && !it.peca ? o.obs_sel : '', o.nota].filter(Boolean).join(' · ');
+    return cab + `<label style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:.5px solid var(--brd);cursor:${it.tel&&!E.enviando?'pointer':'default'}">
+      <input type="checkbox" style="width:15px;height:15px;margin-top:2px;flex-shrink:0" ${it.marcado?'checked':''} ${!it.tel||E.enviando?'disabled':''} onchange="_fpEnvio.itens[${i}].marcado=this.checked;_fpBotao()">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">#${o.os}</span>
+          <span style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.nome_cliente||'(sem nome)'}</span>
+          <span style="font-size:11px;color:var(--tx3);white-space:nowrap;margin-left:auto">${_fpProduto(o)}${it.tel ? ' · '+_confMascara(it.tel) : ''}</span>
+        </div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:1px">${fmtShort(it.data)} · ${it.tec?.nome?.split(' ')[0]||'sem técnico'}${motivo ? ' · '+_avisoEsc(motivo).slice(0,120) : ''}</div>
+        <div style="font-size:11px;color:${cor};margin-top:1px">${status}</div>
+      </div>
+    </label>`;
+  }).join('');
+  const aviso = E.aprovado ? '' : `<div style="background:var(--warn-bg);color:var(--warn-tx);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:8px"><b>O template ainda não foi aprovado pela Meta.</b> Dá para conferir a lista, mas o envio só libera depois da aprovação no RD Station.${E.erroTpl ? '<br><span style="font-size:11px">'+_avisoEsc(E.erroTpl)+'</span>' : ''}</div>`;
+  document.getElementById('fp-body').innerHTML = aviso + `
+    <div style="background:var(--surf2);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--tx2);line-height:1.5">
+      <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Mensagem que o cliente recebe</div>
+      Olá, <b>(nome)</b>! Tudo bem? Aqui é da CTDI, assistência técnica. Estamos entrando em contato sobre a sua ordem de serviço nº <b>(número)</b> (<b>modelo</b>). Para concluir o reparo, precisamos de uma peça que está em falta no momento, e ainda não temos uma data definida para a chegada dela. Sua ordem de serviço continua aberta. Assim que a peça chegar, entraremos em contato para agendar a visita do técnico. Você não precisa fazer nada por enquanto. Pedimos desculpas pelo transtorno e agradecemos a compreensão.
+    </div>
+    <div style="display:flex;gap:12px;font-size:11.5px;padding:8px 0 0;color:var(--tx3)">
+      <span>${E.itens.length} OS pendente${E.itens.length===1?'':'s'} · ${E.itens.filter(it=>it.peca).length} com peça solicitada · ${E.itens.filter(it=>it.enviado).length} já avisada${E.itens.filter(it=>it.enviado).length===1?'':'s'}</span>
+      ${E.enviando ? '' : `<a style="margin-left:auto;color:var(--ow);cursor:pointer;text-decoration:underline" onclick="_fpMarcar(true)">Marcar peça solicitada</a><a style="color:var(--ow);cursor:pointer;text-decoration:underline" onclick="_fpMarcar(false)">Desmarcar todas</a>`}
+    </div>
+    ${linhas || '<div style="font-size:12.5px;color:var(--tx3);padding:16px 0">Nenhuma OS pendente nos últimos 30 dias.</div>'}`;
+  _fpBotao();
+}
+
+window._fpMarcar = function(sim){
+  const E = _fpEnvio; if(!E || E.enviando) return;
+  E.itens.forEach(it => { it.marcado = sim && it.peca && !!it.tel && !it.enviado && it.estado !== 'ok'; });
+  _fpRender();
+};
+
+window._fpBotao = function(){
+  const E = _fpEnvio, btn = document.getElementById('fp-enviar'); if(!E||!btn) return;
+  const n = E.itens.filter(it=>it.marcado).length;
+  btn.disabled = E.enviando || !n || !E.aprovado;
+  btn.textContent = E.enviando ? 'Enviando...' : !E.aprovado ? 'Aguardando aprovação do template' : n ? `Avisar ${n} cliente${n>1?'s':''}` : 'Avisar selecionados';
+  document.getElementById('fp-cancelar').textContent = E.itens.some(it=>it.estado==='ok') ? 'Fechar' : 'Cancelar';
+};
+
+window.enviarFaltaPeca = async function(){
+  const E = _fpEnvio; if(!E || E.enviando || !E.aprovado) return;
+  const fila = E.itens.filter(it=>it.marcado && it.tel);
+  if(!fila.length) return;
+  const {setDoc,doc,serverTimestamp} = getFB();
+  E.enviando = true; _fpRender();
+  let ok = 0;
+  for(const it of fila){
+    it.estado = 'enviando'; _fpRender();
+    try{
+      const resp = await _cobliApi('/api/rd/falta-peca', {
+        telefone: it.tel,
+        variaveis: [_confNome(it.o.nome_cliente), String(it.o.os), _fpProduto(it.o)],
+      });
+      const registro = { os:String(it.o.os), telefone:it.tel, data:it.data, techId:it.o.techId||'', mensagemId:resp.id||null,
+        user:window._currentUser?.nome||'Sistema', uid:getUID()||'' };
+      await setDoc(doc(getDB(),'avisos_falta_peca',it.chave), {...registro, enviadoEm:serverTimestamp()});
+      it.enviado = {...registro, enviadoEm:{ toDate:()=>new Date() }};
+      await logAudit(it.o.os, 'edicao', 'Aviso de falta de peça enviado por WhatsApp', 'info', it.data);
+      it.estado = 'ok'; it.marcado = false; ok++;
+    }catch(e){
+      it.estado = 'erro'; it.msg = e.message;
+      console.error('Falta de peça (OS '+it.o.os+'):', e);
+    }
+    _fpRender();
+    await new Promise(r=>setTimeout(r,700)); // a RD aceita 100 requisições a cada 2 minutos
+  }
+  E.enviando = false; _fpRender();
+  toast(ok === fila.length ? `${ok} aviso(s) de falta de peça enviado(s)` : `${ok} de ${fila.length} enviado(s) — veja os erros`, ok === fila.length ? 'ok' : 'warn');
 };
 
 function subscribeTravas(data){
@@ -5741,7 +5894,7 @@ window.capturarTela = async function(elementId, nome){
 /* ── SOMENTE VISUALIZAÇÃO: toda ação que grava é barrada na entrada ── */
 ['saveDrawer','saveOS','deleteOS','dropOnLane','openModalOS','clonePrompt','replicarPendentes',
  'abrirTravaModal','salvarTrava','removerTrava','abrirNotaPend','salvarNotaPend','autoSaveNotaPend',
- 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli','abrirConfirmacoes','enviarConfirmacoes','marcarRespostaConf',
+ 'drwPecaAdd','drwPecaRemove','abrirEnvioCobli','enviarRotasCobli','abrirConfirmacoes','enviarConfirmacoes','marcarRespostaConf','abrirFaltaPeca','enviarFaltaPeca',
  'openTecForm','removeTec','reativarTec','openAuxForm','openTrocaAux',
  'openUserForm','resetUserPassword','removeUser','editCargo','openCargoForm',
  'openTipoForm','removeTipo','restaurarTiposPadrao'].forEach(nome=>{

@@ -353,24 +353,73 @@ app.post('/api/rd/confirmar-visita', async (req, res) => {
   if (!Array.isArray(variaveis) || variaveis.length !== 4 || variaveis.some(v => typeof v !== 'string' || !v.trim() || v.length > 120)) {
     return res.status(400).json({ error: { message: 'Informe nome, OS, data e período.' } });
   }
+  await enviarTemplateRD(res, 'confirmar-visita', telefone, RD_TEMPLATE_VISITA, variaveis);
+});
+
+// Envia um template aprovado do RD Conversas e responde ao navegador { enviado, id } ou o erro
+async function enviarTemplateRD(res, rotulo, telefone, templateId, variaveis) {
   try {
     const r = await fetch(RD_API_URL + '/v3/messages/template/send', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + RD_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ recipient_number: telefone, country_code: '55', template_message_id: RD_TEMPLATE_VISITA, variables: variaveis.map(v => v.trim()), sent_by: 'bot' }),
+      body: JSON.stringify({ recipient_number: telefone, country_code: '55', template_message_id: templateId, variables: variaveis.map(v => v.trim()), sent_by: 'bot' }),
       signal: AbortSignal.timeout(30000),
     });
     const corpo = await r.json().catch(() => ({}));
     if (!r.ok) {
       const msg = corpo?.error?.message || corpo?.message || `RD Conversas respondeu HTTP ${r.status}`;
-      console.error('RD confirmar-visita:', r.status, msg);
+      console.error(`RD ${rotulo}:`, r.status, msg);
       return res.status(r.status === 401 || r.status === 403 ? 502 : r.status).json({ error: { message: 'RD Conversas: ' + msg } });
     }
     res.json({ enviado: true, id: corpo?.data?.id || null });
   } catch (e) {
-    console.error('RD confirmar-visita:', e.message);
+    console.error(`RD ${rotulo}:`, e.message);
     res.status(502).json({ error: { message: 'Falha ao falar com o RD Conversas: ' + e.message } });
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Aviso de falta de peça (envio em massa a partir do quadro)
+// GET  /api/rd/falta-peca             → { aprovado } (o template já pode ser usado?)
+// POST /api/rd/falta-peca  { telefone, variaveis: [nome, os, produto] }
+// O id do template vem de RD_TEMPLATE_FALTA_PECA (Render → Environment) ou, sem ela, é procurado
+// pelo nome na lista da RD — que só traz templates aprovados pela Meta.
+// ══════════════════════════════════════════════════════════════
+const RD_TEMPLATE_FALTA_PECA_NOME = env('RD_TEMPLATE_FALTA_PECA_NOME') || 'rotasapppc_1792093166';
+let _faltaPecaTemplate = { id: env('RD_TEMPLATE_FALTA_PECA') || null, em: 0 };
+async function templateFaltaPeca() {
+  if (_faltaPecaTemplate.id) return _faltaPecaTemplate.id;
+  if (Date.now() - _faltaPecaTemplate.em < 5 * 60 * 1000) return null; // não aprovado: pergunta de novo em 5 min
+  _faltaPecaTemplate.em = Date.now();
+  const r = await fetch(RD_API_URL + '/v2/template/all', { headers: { Authorization: 'Bearer ' + RD_API_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
+  if (!r.ok) { _faltaPecaTemplate.em = 0; throw new Error(`RD Conversas respondeu HTTP ${r.status} ao listar os templates`); }
+  const j = await r.json().catch(() => ({}));
+  const lista = Array.isArray(j) ? j : j.data || [];
+  const t = lista.find(x => x.title === RD_TEMPLATE_FALTA_PECA_NOME && x.channel === 'whatsapp');
+  if (t) _faltaPecaTemplate.id = t.id;
+  return _faltaPecaTemplate.id;
+}
+
+app.get('/api/rd/falta-peca', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirLogin(req, res))) return;
+  try { res.json({ aprovado: !!(await templateFaltaPeca()) }); }
+  catch (e) { res.status(502).json({ error: { message: e.message } }); }
+});
+
+app.post('/api/rd/falta-peca', async (req, res) => {
+  if (!RD_API_KEY) return res.status(503).json({ error: { message: 'RD Conversas não configurado: defina RD_API_KEY no Render.' } });
+  if (!(await exigirEdicao(req, res))) return;
+  const telefone = String(req.body?.telefone || ''), variaveis = req.body?.variaveis;
+  if (!/^\+55\d{10,11}$/.test(telefone)) return res.status(400).json({ error: { message: 'Telefone inválido.' } });
+  if (!Array.isArray(variaveis) || variaveis.length !== 3 || variaveis.some(v => typeof v !== 'string' || !v.trim() || v.length > 120)) {
+    return res.status(400).json({ error: { message: 'Informe nome, OS e produto.' } });
+  }
+  let id;
+  try { id = await templateFaltaPeca(); }
+  catch (e) { return res.status(502).json({ error: { message: e.message } }); }
+  if (!id) return res.status(409).json({ error: { message: 'O template de falta de peça ainda não foi aprovado pela Meta.' } });
+  await enviarTemplateRD(res, 'falta-peca', telefone, id, variaveis);
 });
 
 // ══════════════════════════════════════════════════════════════
