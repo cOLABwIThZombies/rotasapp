@@ -2698,7 +2698,7 @@ function _fpRender(){
       </div>
     </label>`;
   }).join('');
-  const aviso = E.aprovado ? '' : `<div style="background:var(--warn-bg);color:var(--warn-tx);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:8px"><b>O template ainda não foi aprovado pela Meta.</b> Dá para conferir a lista, mas o envio só libera depois da aprovação no RD Station.${E.erroTpl ? '<br><span style="font-size:11px">'+_avisoEsc(E.erroTpl)+'</span>' : ''}</div>`;
+  const aviso = E.aprovado ? '' : `<div style="background:var(--warn-bg);color:var(--warn-tx);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:8px"><b>O template ainda não está liberado no RD Station.</b> Dá para conferir a lista, mas o envio só libera quando o template aprovado aparecer para a API da RD (o Rotas confere de novo a cada 5 minutos).${E.erroTpl ? '<br><span style="font-size:11px">'+_avisoEsc(E.erroTpl)+'</span>' : ''}</div>`;
   document.getElementById('fp-body').innerHTML = aviso + `
     <div style="background:var(--surf2);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--tx2);line-height:1.5">
       <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Mensagem que o cliente recebe</div>

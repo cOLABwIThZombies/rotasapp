@@ -395,7 +395,7 @@ async function templateFaltaPeca() {
   const r = await fetch(RD_API_URL + '/v2/template/all', { headers: { Authorization: 'Bearer ' + RD_API_KEY, Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
   if (!r.ok) { _faltaPecaTemplate.em = 0; throw new Error(`RD Conversas respondeu HTTP ${r.status} ao listar os templates`); }
   const j = await r.json().catch(() => ({}));
-  const lista = Array.isArray(j) ? j : j.data || [];
+  const lista = Array.isArray(j) ? j : j.templates || j.data || []; // a RD responde { templates: [...] }
   const t = lista.find(x => x.title === RD_TEMPLATE_FALTA_PECA_NOME && x.channel === 'whatsapp');
   if (t) _faltaPecaTemplate.id = t.id;
   return _faltaPecaTemplate.id;
@@ -441,7 +441,7 @@ app.post('/api/rd/falta-peca', async (req, res) => {
   let id;
   try { id = await templateFaltaPeca(); }
   catch (e) { return res.status(502).json({ error: { message: e.message } }); }
-  if (!id) return res.status(409).json({ error: { message: 'O template de falta de peça ainda não foi aprovado pela Meta.' } });
+  if (!id) return res.status(409).json({ error: { message: `O template de falta de peça (${RD_TEMPLATE_FALTA_PECA_NOME}) ainda não está liberado na API do RD Station.` } });
   // Só envia para quem já é contato no RD Conversas
   try {
     if (!(await contatoRD(telefone)).cadastrado) return res.status(422).json({ error: { message: MSG_NAO_CADASTRADO, codigo: 'nao_cadastrado' } });
