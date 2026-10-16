@@ -2702,7 +2702,7 @@ function _fpRender(){
   document.getElementById('fp-body').innerHTML = aviso + `
     <div style="background:var(--surf2);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--tx2);line-height:1.5">
       <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Mensagem que o cliente recebe</div>
-      Olá, <b>(nome)</b>! Tudo bem? Aqui é da CTDI, assistência técnica. Estamos entrando em contato sobre a sua ordem de serviço nº <b>(número)</b> (<b>modelo</b>). Para concluir o reparo, precisamos de uma peça que está em falta no momento, e ainda não temos uma data definida para a chegada dela. Sua ordem de serviço continua aberta. Assim que a peça chegar, entraremos em contato para agendar a visita do técnico. Você não precisa fazer nada por enquanto. Pedimos desculpas pelo transtorno e agradecemos a compreensão.
+      Olá, <b>(nome)</b>! Tudo bem? Falamos da CTDI, Loja &amp; Assistência Técnica Autorizada Samsung Pinheiros. Estamos entrando em contato sobre a sua ordem de serviço nº <b>(número)</b> (<b>modelo</b>). Ainda estamos aguardando chegada de peças. Tudo bem? Assim que disponíveis, entraremos em contato para agendarmos o serviço de reparo. Esta é uma mensagem automática sobre atualização do status do seu pedido. Desde já, agradecemos a compreensão.
     </div>
     <div style="display:flex;gap:12px;font-size:11.5px;padding:8px 0 0;color:var(--tx3)">
       <span>${E.itens.length} OS pendente${E.itens.length===1?'':'s'} · ${E.itens.filter(it=>it.peca).length} com peça solicitada · ${E.itens.filter(it=>it.enviado).length} já avisada${E.itens.filter(it=>it.enviado).length===1?'':'s'}</span>

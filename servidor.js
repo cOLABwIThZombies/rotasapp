@@ -382,11 +382,11 @@ async function enviarTemplateRD(res, rotulo, telefone, templateId, variaveis) {
 // Aviso de falta de peça (envio em massa a partir do quadro)
 // GET  /api/rd/falta-peca             → { aprovado } (o template já pode ser usado?)
 // POST /api/rd/falta-peca  { telefone, variaveis: [nome, os, produto] }
-// Template aprovado "rotasapppc_1792093166" (variáveis: nome, OS, modelo; sem botões).
+// Template aprovado "faltapeca_1792161419" (variáveis: nome, OS, modelo; sem botões).
 // Render → Environment: RD_TEMPLATE_FALTA_PECA (opcional; troca o id do template)
 // Só envia para números já cadastrados como contato no RD Conversas (senão responde 422).
 // ══════════════════════════════════════════════════════════════
-const RD_TEMPLATE_FALTA_PECA = env('RD_TEMPLATE_FALTA_PECA') || '6ad221bd9469cdcdfa57a6ca';
+const RD_TEMPLATE_FALTA_PECA = env('RD_TEMPLATE_FALTA_PECA') || '6ad23c71ae6631ac5310ff2a';
 
 // O contato existe no RD Conversas? → { cadastrado, nome } (a RD responde 404 quando não existe)
 async function contatoRD(telefone) {
