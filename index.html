@@ -4795,19 +4795,36 @@ async function carregarDashGeral(){
   renderDashboard();
 }
 
-// Pendentes de verdade: a OS pendente é replicada para o dia seguinte até ser resolvida, então
-// cada OS conta uma vez, pela situação mais recente dentro do período. E se o mesmo número de OS
-// foi finalizado em qualquer data posterior (mesmo fora do período), a pendência já foi resolvida.
+// Pendentes de verdade. A OS pendente é replicada para o dia seguinte até ser resolvida, e às vezes
+// é fechada e aberta de novo com outro número. Por isso o "mesmo atendimento" é reconhecido por:
+//   nº da OS · serial do produto (8+ caracteres; "M000" e afins não servem) · nome do cliente + modelo.
+// Cada atendimento conta uma vez, pela situação mais recente dentro do período; e se ele foi
+// finalizado em qualquer data posterior (mesmo fora do período), a pendência já foi resolvida.
+const _normId = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function _chavesAtendimento(o){
+  const ch = ['OS:'+String(o.os||o.id)];
+  const serial = _normId(o.serial), nome = _normId(o.nome_cliente), modelo = _normId(o.modelo);
+  if(serial.length >= 8 && /[A-Z]/.test(serial) && /\d/.test(serial)) ch.push('S:'+serial);
+  if(nome.length >= 3 && modelo.length >= 4) ch.push('N:'+nome+'|'+modelo);
+  return ch;
+}
 function _pendentesReais(ordens){
-  const finalizadaEm = {}; // nº da OS → data mais recente em que foi finalizada (histórico em memória)
+  const finalizadaEm = {}; // chave → data mais recente em que foi finalizada (histórico em memória)
   Object.values(S.ordens).flat().forEach(o => {
     if(o.status!=='finalizado') return;
-    const k = String(o.os||o.id);
-    if((o.data||'') > (finalizadaEm[k]||'')) finalizadaEm[k] = o.data||'';
+    _chavesAtendimento(o).forEach(k => { if((o.data||'') > (finalizadaEm[k]||'')) finalizadaEm[k] = o.data||''; });
   });
-  const ultima = {};
-  ordens.forEach(o => { const k = String(o.os||o.id); if(!ultima[k] || (o.data||'') >= (ultima[k].data||'')) ultima[k] = o; });
-  return Object.values(ultima).filter(o => o.status==='pendente' && !((finalizadaEm[String(o.os||o.id)]||'') > (o.data||'')));
+  // agrupa as OS do período que são o mesmo atendimento (compartilham alguma chave)
+  const pai = {}, raiz = k => { while(pai[k] !== k) k = pai[k] = pai[pai[k]]; return k; };
+  const grupoDe = o => { const ch = _chavesAtendimento(o); ch.forEach(k => { pai[k] ??= k; }); ch.slice(1).forEach(k => { pai[raiz(k)] = raiz(ch[0]); }); return ch; };
+  const chaves = ordens.map(grupoDe);
+  const ultima = {}, chavesGrupo = {};
+  ordens.forEach((o,i) => {
+    const g = raiz(chaves[i][0]);
+    (chavesGrupo[g] ||= new Set()); chaves[i].forEach(k => chavesGrupo[g].add(k));
+    if(!ultima[g] || (o.data||'') >= (ultima[g].data||'')) ultima[g] = o;
+  });
+  return Object.entries(ultima).filter(([g,o]) => o.status==='pendente' && ![...chavesGrupo[g]].some(k => (finalizadaEm[k]||'') > (o.data||''))).map(([,o]) => o);
 }
 window.setDashPeriod = setDashPeriod;
 
