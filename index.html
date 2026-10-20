@@ -482,6 +482,22 @@ body.somente-leitura .osc{cursor:pointer}
 .dash-ticker-total{padding:0 16px;font-size:13px;font-weight:700;color:#fff;background:#1a1917;height:100%;display:flex;align-items:center;flex-shrink:0;border-left:1px solid #333;font-family:'DM Mono',monospace;letter-spacing:.3px;white-space:nowrap}
 .dash-kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:0 16px 14px;flex-shrink:0}
 .dash-kpi-card{border-radius:10px;padding:14px 16px 12px;position:relative;overflow:hidden;min-width:0}
+/* Card clicável: abre a lista das OS que ele conta */
+.dash-kpi-card.clicavel{cursor:pointer;transition:transform var(--anim-fast),box-shadow var(--anim-fast)}
+.dash-kpi-card.clicavel:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.dash-kpi-card.clicavel:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+.dkc-ver{position:absolute;top:12px;right:12px;font-size:10px;opacity:0;font-weight:600;letter-spacing:.3px;transition:opacity var(--anim-fast);z-index:1}
+.dash-kpi-card.clicavel:hover .dkc-ver,.dash-kpi-card.clicavel:focus-visible .dkc-ver{opacity:1}
+.dash-kpi-card.clicavel:hover .dkc-icon{opacity:0}
+.dl-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.dl-tbl th{position:sticky;top:0;background:var(--surf);text-align:left;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;padding:8px 8px;border-bottom:1px solid var(--brd);cursor:pointer;white-space:nowrap;user-select:none}
+.dl-tbl td{padding:8px;border-bottom:.5px solid var(--brd);vertical-align:top}
+.dl-tbl tbody tr{cursor:pointer;transition:background var(--anim-fast)}
+.dl-tbl tbody tr:hover{background:var(--surf2)}
+.dl-os{font-family:'DM Mono',monospace;font-weight:600;white-space:nowrap}
+.dl-dias{display:inline-block;padding:1px 7px;border-radius:10px;font-weight:700;font-size:11px;background:var(--surf2);color:var(--tx2);white-space:nowrap}
+.dl-dias.alto{background:var(--err-bg,#fde8e8);color:var(--err,#b91c1c)}
+.dl-dias.medio{background:var(--warn-bg);color:var(--warn-tx)}
 .dash-kpi-card.dark{background:#1a1917;color:#fff}
 .dash-kpi-card.green{background:linear-gradient(135deg,#0d5e3f,#1D9E75);color:#fff}
 .dash-kpi-card.blue{background:linear-gradient(135deg,#0c3460,#378ADD);color:#fff}
@@ -1068,6 +1084,25 @@ body.somente-leitura .osc{cursor:pointer}
       <button class="btn-ghost" onclick="fecharConfirmacoes()" id="conf-cancelar">Cancelar</button>
       <button class="btn-save" style="flex:none;padding:9px 16px" id="conf-enviar" onclick="enviarConfirmacoes()">Enviar selecionadas</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL LISTA DE OS DA DASHBOARD (clique num indicador) -->
+<div class="moverlay" id="modal-dash-lista" onclick="if(event.target===this)closeModal('modal-dash-lista')">
+  <div class="modal" style="width:min(980px,96vw);max-height:88vh;display:flex;flex-direction:column">
+    <div class="mhdr">
+      <div>
+        <span class="mtitle" id="dl-titulo">—</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:3px" id="dl-sub">—</div>
+      </div>
+      <button class="mclose" onclick="closeModal('modal-dash-lista')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <div style="padding:10px 18px 0;display:flex;gap:10px;align-items:center">
+      <input class="inp nm" id="dl-busca" placeholder="Buscar por OS, cliente, modelo, serial, técnico, motivo..." oninput="_dlRender()" style="flex:1">
+      <span id="dl-contagem" style="font-size:12px;color:var(--tx3);white-space:nowrap"></span>
+    </div>
+    <div style="overflow:auto;flex:1;padding:6px 18px 4px" id="dl-corpo"></div>
+    <div style="padding:8px 18px 14px;font-size:11px;color:var(--tx3)">Clique numa OS para abrir os detalhes no quadro do dia.</div>
   </div>
 </div>
 
@@ -4828,6 +4863,96 @@ function _pendentesReais(ordens){
 }
 window.setDashPeriod = setDashPeriod;
 
+/* ── LISTA DE OS POR INDICADOR: clicar num card da Dashboard mostra as OS que ele conta ── */
+let _dashListas = {};   // preenchido a cada renderDashboard: { total, fin, prog, pend, ftc, fat }
+let _dl = null;         // lista aberta: { tipo, itens, ordem:{campo, asc} }
+const _DL_TITULOS = { total:'Todas as OS', fin:'OS finalizadas', prog:'OS em progresso', pend:'OS pendentes', ftc:'OS com FTC', fat:'OS faturadas' };
+
+// Desde quando o atendimento está pendente: primeira data em que alguma OS com a mesma chave
+// (nº, serial ou nome+modelo) ficou pendente sem ter sido finalizada antes dela
+// indice: chave → OS do histórico com essa chave (montado uma vez por lista)
+function _indiceAtendimentos(){
+  const ind = {};
+  Object.values(S.ordens).flat().forEach(x => _chavesAtendimento(x).forEach(k => (ind[k] ||= []).push(x)));
+  return ind;
+}
+function _pendenteDesde(o, ind){
+  const relacionadas = new Set(_chavesAtendimento(o).flatMap(k => ind[k] || []));
+  let desde = o.data||'', fimAntes = '';
+  relacionadas.forEach(x => { if(x.status==='finalizado' && x.data <= (o.data||'') && x.data > fimAntes) fimAntes = x.data; });
+  relacionadas.forEach(x => { if(x.status==='pendente' && x.data > fimAntes && x.data < desde) desde = x.data; });
+  return desde;
+}
+
+window.abrirListaDash = function(tipo){
+  const base = _dashListas[tipo] || [];
+  const hoje = new Date(TODAY_STR+'T12:00:00');
+  const ind = tipo==='pend' ? _indiceAtendimentos() : null;
+  const itens = base.map(o => {
+    const tec = S.tecnicos.find(t=>t.id===o.techId);
+    const it = { o, tec: tec?.nome || '—', data: o.data||'' };
+    if(tipo==='pend'){
+      it.desde = _pendenteDesde(o, ind);
+      it.dias = Math.max(0, Math.round((hoje - new Date(it.desde+'T12:00:00'))/86400000));
+      it.motivo = [o.obs_sel, o.nota].filter(Boolean).join(' · ');
+    }
+    it.busca = _normId([o.os, o.nome_cliente, o.modelo, o.serial, it.tec, o.tipo, o.bairro, o.defeito, it.motivo].join(' '));
+    return it;
+  });
+  _dl = { tipo, itens, ordem: tipo==='pend' ? {campo:'dias', asc:false} : {campo:'data', asc:false} };
+  document.getElementById('dl-titulo').textContent = _DL_TITULOS[tipo] || 'OS';
+  document.getElementById('dl-sub').textContent = getDashLabel() + (tipo==='pend' ? ' · cada atendimento aparece uma vez, na situação mais recente' : '');
+  document.getElementById('dl-busca').value = '';
+  openModal('modal-dash-lista');
+  _dlRender();
+  setTimeout(()=>document.getElementById('dl-busca').focus(), 60);
+};
+
+window._dlOrdenar = function(campo){
+  if(!_dl) return;
+  _dl.ordem = { campo, asc: _dl.ordem.campo===campo ? !_dl.ordem.asc : campo!=='dias' && campo!=='data' };
+  _dlRender();
+};
+
+window._dlRender = function(){
+  if(!_dl) return;
+  const q = _normId(document.getElementById('dl-busca').value);
+  const {campo, asc} = _dl.ordem;
+  const val = it => campo==='os' ? String(it.o.os||'') : campo==='cliente' ? (it.o.nome_cliente||'') : campo==='modelo' ? (it.o.modelo||'') : campo==='tec' ? it.tec : it[campo] ?? '';
+  const lista = _dl.itens.filter(it => !q || it.busca.includes(q))
+    .sort((a,b) => { const va = val(a), vb = val(b); const r = typeof va==='number' ? va-vb : String(va).localeCompare(String(vb),'pt-BR'); return asc ? r : -r; });
+  document.getElementById('dl-contagem').textContent = `${lista.length} de ${_dl.itens.length} OS`;
+  const pend = _dl.tipo==='pend';
+  const th = (c,t) => `<th onclick="_dlOrdenar('${c}')">${t}${campo===c ? (asc?' ▲':' ▼') : ''}</th>`;
+  const esc = s => _avisoEsc(s||'—');
+  const stTxt = o => o.status==='finalizado' ? '<span class="pill pill-ok">Finalizada</span>' : o.status==='pendente' ? '<span class="pill pill-err">Pendente</span>' : '<span class="pill pill-info">Em progresso</span>';
+  document.getElementById('dl-corpo').innerHTML = lista.length ? `<table class="dl-tbl">
+    <thead><tr>${th('os','OS')}${th('cliente','Cliente')}${th('modelo','Modelo')}${th('tec','Técnico')}
+      ${pend ? th('desde','Pendente desde')+th('dias','Dias')+'<th>Motivo</th>' : th('data','Data')+'<th>Status</th>'+(_dl.tipo==='fat'?'<th>Valor</th>':'')}</tr></thead>
+    <tbody>${lista.map(it => { const o = it.o; return `<tr onclick="abrirOSDaDash('${o.id}','${o.data}')" title="Abrir a OS ${esc(o.os)} no quadro de ${fmtShort(o.data)}">
+      <td><div class="dl-os">#${esc(o.os)}</div><div style="font-size:10.5px;color:var(--tx3)">${esc(o.tipo)}</div></td>
+      <td>${esc(o.nome_cliente)}<div style="font-size:10.5px;color:var(--tx3)">${esc(o.bairro||o.cep)}</div></td>
+      <td>${esc(o.modelo)}<div style="font-size:10.5px;color:var(--tx3);font-family:'DM Mono',monospace">${esc(o.serial)}</div></td>
+      <td style="white-space:nowrap">${esc(it.tec.split(' ')[0])}</td>
+      ${pend ? `<td style="white-space:nowrap">${fmtShort(it.desde)}${it.desde!==o.data ? `<div style="font-size:10.5px;color:var(--tx3)">última: ${fmtShort(o.data)}</div>` : ''}</td>
+        <td><span class="dl-dias ${it.dias>=15?'alto':it.dias>=5?'medio':''}">${it.dias}d</span></td>
+        <td style="font-size:11.5px;color:var(--tx2);max-width:240px">${esc(it.motivo)}</td>`
+      : `<td style="white-space:nowrap">${fmtShort(o.data)}</td><td>${stTxt(o)}</td>${_dl.tipo==='fat' ? `<td style="white-space:nowrap;font-weight:600">${fmtBRL(parseFloat(o.valor))}</td>` : ''}`}
+    </tr>`; }).join('')}</tbody></table>`
+    : `<div style="padding:30px 0;text-align:center;color:var(--tx3);font-size:13px">${_dl.itens.length ? 'Nenhuma OS encontrada para essa busca.' : 'Nenhuma OS neste indicador.'}</div>`;
+};
+
+// Abre a OS no quadro da data dela (o painel de detalhes só mostra OS do dia aberto)
+window.abrirOSDaDash = async function(id, data){
+  closeModal('modal-dash-lista');
+  if(currentDate !== data) setCurrentDate(data);
+  go('rotas', document.querySelector('.ni[data-perm=rotas]'));
+  const fim = Date.now() + 10000;
+  while(Date.now() < fim && !ordensForDate(data).some(o => o.id === id)) await new Promise(r => setTimeout(r, 150));
+  if(ordensForDate(data).some(o => o.id === id)) openDrawer(id);
+  else toast('Não foi possível abrir a OS — ela pode ter sido removida.','warn');
+};
+
 async function carregarDashMes(mv){
   // Usa cache S.ordens via getMes() — zero leituras duplicadas
   if(_dashLoading) return;
@@ -5026,6 +5151,8 @@ function renderDashboard(){
   const fatOS=fin.filter(o=>parseFloat(o.valor)>0);
   const ftc=all.filter(o=>o.ftc==='sim');
   const taxa=all.length?Math.round(fin.length/all.length*100):0;
+  _dashListas = { total:all, fin, prog, pend, ftc, fat:fatOS };
+  const clic = t => `clicavel" role="button" tabindex="0" onclick="abrirListaDash('${t}')" onkeydown="if(event.key==='Enter')abrirListaDash('${t}')" title="Ver as OS`;
 
   // Ticker items — OS faturadas
   const tickerItems=fatOS.length
@@ -5064,38 +5191,38 @@ function renderDashboard(){
 
   <!-- ── KPIs ──────────────────────────────────────────── -->
   <div class="dash-kpi-row">
-    <div class="dash-kpi-card dark">
+    <div class="dash-kpi-card dark ${clic('total')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="16" height="13" rx="1.5"/><path d="M6 4V3M14 4V3M2 8h16"/></svg></div>
       <div class="dkc-val">${all.length}</div>
       <div class="dkc-lbl">Total OS</div>
       <div class="dkc-sub">${label}</div>
     </div>
-    <div class="dash-kpi-card green">
+    <div class="dash-kpi-card green ${clic('fin')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10l4 4 8-8"/></svg></div>
       <div class="dkc-val">${fin.length}</div>
       <div class="dkc-lbl">Finalizadas</div>
       <div class="dkc-bar"><div style="width:${taxa}%"></div></div>
       <div class="dkc-sub">${taxa}% de conclusão</div>
     </div>
-    <div class="dash-kpi-card blue">
+    <div class="dash-kpi-card blue ${clic('prog')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2.5"/></svg></div>
       <div class="dkc-val">${prog.length}</div>
       <div class="dkc-lbl">Em progresso</div>
       <div class="dkc-sub">${all.length?Math.round(prog.length/all.length*100):0}% do total</div>
     </div>
-    <div class="dash-kpi-card red">
+    <div class="dash-kpi-card red ${clic('pend')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 6v4M10 14h.01"/><circle cx="10" cy="10" r="7"/></svg></div>
       <div class="dkc-val">${pend.length}</div>
       <div class="dkc-lbl">Pendentes</div>
       <div class="dkc-sub">${dashPeriod==='dia' ? 'Requerem atenção' : 'cada OS contada uma vez'}</div>
     </div>
-    <div class="dash-kpi-card gold">
+    <div class="dash-kpi-card gold ${clic('ftc')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3l2 4 4.5.7-3.2 3.1.7 4.4L10 13l-4 2.2.7-4.4L3.5 7.7 8 7z"/></svg></div>
       <div class="dkc-val">${ftc.length}</div>
       <div class="dkc-lbl">FTC</div>
       <div class="dkc-sub">Primeiro toque</div>
     </div>
-    <div class="dash-kpi-card teal">
+    <div class="dash-kpi-card teal ${clic('fat')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 16l4-5 4 3 3-4 3 3"/><path d="M3 4h14"/></svg></div>
       <div class="dkc-val" style="font-size:15px;margin-top:2px">${fmtBRL(fat)}</div>
       <div class="dkc-lbl">Faturamento</div>
@@ -6076,7 +6203,7 @@ window.capturarTela = async function(elementId, nome){
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDrawer();
-    ['modal-os','modal-confirm','modal-form','modal-rom','modal-pdf'].forEach(id=>closeModal(id));
+    ['modal-os','modal-confirm','modal-form','modal-rom','modal-pdf','modal-dash-lista'].forEach(id=>closeModal(id));
   }
 });
 </script>
