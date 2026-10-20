@@ -4761,7 +4761,53 @@ function setDashPeriod(p){
   document.getElementById('dash-period-'+p)?.classList.add('on');
   if(p==='mes')  carregarDashMes(dashMes);
   else if(p==='ano') carregarDashAno(dashAno);
+  else if(p==='geral') carregarDashGeral();
   else renderDashboard();
+}
+
+// Histórico inteiro de OS. O boot só traz o mês atual e o anterior; o Geral precisa de tudo, e as
+// pendentes de qualquer período precisam saber se a OS foi finalizada depois. Busca todas as OS de
+// uma vez (uma consulta paginada), uma vez só, e preenche os dias que ainda não estão em memória.
+let _dashGeralCarregado = false, _historicoPromessa = null;
+function _carregarHistoricoTodo(){
+  return _historicoPromessa ||= (async () => {
+    const {getDocs,collectionGroup} = getFB();
+    const snap = await getDocs(collectionGroup(getDB(),'ordens'));
+    const porDia = {};
+    snap.docs.forEach(d => {
+      const ds = (d.ref?.path||'').split('/')[1]||'';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ds) || ds > TODAY_STR) return;
+      (porDia[ds] ||= []).push({id:d.id, data:ds, ...d.data()});
+    });
+    // não substitui dias já em memória (o dia aberto no quadro é atualizado em tempo real)
+    Object.entries(porDia).forEach(([ds,l]) => { if(S.ordens[ds] === undefined) S.ordens[ds] = l.sort((a,b)=>(a.posicao||0)-(b.posicao||0)); });
+    _dashGeralCarregado = true;
+  })().catch(e => { console.warn('Dashboard histórico:', e); toast('Não foi possível carregar o histórico completo: '+e.message,'err'); });
+}
+async function carregarDashGeral(){
+  if(_dashGeralCarregado){ renderDashboard(); return; }
+  if(_dashLoading) return;
+  if(_historicoPromessa) await _historicoPromessa;
+  if(!_dashGeralCarregado) _historicoPromessa = null; // falhou antes: tenta de novo
+  _dashLoading = true; renderDashboard();
+  await _carregarHistoricoTodo();
+  _dashLoading = false;
+  renderDashboard();
+}
+
+// Pendentes de verdade: a OS pendente é replicada para o dia seguinte até ser resolvida, então
+// cada OS conta uma vez, pela situação mais recente dentro do período. E se o mesmo número de OS
+// foi finalizado em qualquer data posterior (mesmo fora do período), a pendência já foi resolvida.
+function _pendentesReais(ordens){
+  const finalizadaEm = {}; // nº da OS → data mais recente em que foi finalizada (histórico em memória)
+  Object.values(S.ordens).flat().forEach(o => {
+    if(o.status!=='finalizado') return;
+    const k = String(o.os||o.id);
+    if((o.data||'') > (finalizadaEm[k]||'')) finalizadaEm[k] = o.data||'';
+  });
+  const ultima = {};
+  ordens.forEach(o => { const k = String(o.os||o.id); if(!ultima[k] || (o.data||'') >= (ultima[k].data||'')) ultima[k] = o; });
+  return Object.values(ultima).filter(o => o.status==='pendente' && !((finalizadaEm[String(o.os||o.id)]||'') > (o.data||'')));
 }
 window.setDashPeriod = setDashPeriod;
 
@@ -4952,11 +4998,13 @@ function renderDashboard(){
     return;
   }
 
+  // As pendentes dependem do histórico inteiro (finalizada depois?): carrega uma vez, em segundo plano
+  if(!_dashGeralCarregado && !_historicoPromessa) _carregarHistoricoTodo().then(()=>{ if(document.getElementById('screen-dashboard')?.classList.contains('on')) renderDashboard(); });
   const all=getDashOrdens();
   const label=getDashLabel();
   const fin=all.filter(o=>o.status==='finalizado');
   const prog=all.filter(o=>o.status==='em_progresso');
-  const pend=all.filter(o=>o.status==='pendente');
+  const pend=_pendentesReais(all);
   const fat=fin.reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
   const fatOS=fin.filter(o=>parseFloat(o.valor)>0);
   const ftc=all.filter(o=>o.ftc==='sim');
@@ -5022,7 +5070,7 @@ function renderDashboard(){
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 6v4M10 14h.01"/><circle cx="10" cy="10" r="7"/></svg></div>
       <div class="dkc-val">${pend.length}</div>
       <div class="dkc-lbl">Pendentes</div>
-      <div class="dkc-sub">Requerem atenção</div>
+      <div class="dkc-sub">${dashPeriod==='dia' ? 'Requerem atenção' : 'cada OS contada uma vez'}</div>
     </div>
     <div class="dash-kpi-card gold">
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3l2 4 4.5.7-3.2 3.1.7 4.4L10 13l-4 2.2.7-4.4L3.5 7.7 8 7z"/></svg></div>
