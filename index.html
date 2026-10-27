@@ -4803,20 +4803,23 @@ function setDashPeriod(p){
 // Histórico inteiro de OS. O boot só traz o mês atual e o anterior; o Geral precisa de tudo, e as
 // pendentes de qualquer período precisam saber se a OS foi finalizada depois. Busca todas as OS de
 // uma vez (uma consulta paginada), uma vez só, e preenche os dias que ainda não estão em memória.
-let _dashGeralCarregado = false, _historicoPromessa = null;
+let _dashGeralCarregado = false, _historicoPromessa = null, _historicoEm = 0;
+let _osAFrente = []; // OS marcadas para depois de hoje (do histórico; o dia aberto no quadro vem de S.ordens)
 function _carregarHistoricoTodo(){
   return _historicoPromessa ||= (async () => {
     const {getDocs,collectionGroup} = getFB();
     const snap = await getDocs(collectionGroup(getDB(),'ordens'));
-    const porDia = {};
+    const porDia = {}, frente = [];
     snap.docs.forEach(d => {
       const ds = (d.ref?.path||'').split('/')[1]||'';
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(ds) || ds > TODAY_STR) return;
-      (porDia[ds] ||= []).push({id:d.id, data:ds, ...d.data()});
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ds)) return;
+      const o = {id:d.id, data:ds, ...d.data()};
+      if(ds > TODAY_STR) frente.push(o); else (porDia[ds] ||= []).push(o);
     });
     // não substitui dias já em memória (o dia aberto no quadro é atualizado em tempo real)
     Object.entries(porDia).forEach(([ds,l]) => { if(S.ordens[ds] === undefined) S.ordens[ds] = l.sort((a,b)=>(a.posicao||0)-(b.posicao||0)); });
-    _dashGeralCarregado = true;
+    _osAFrente = frente;
+    _dashGeralCarregado = true; _historicoEm = Date.now();
   })().catch(e => { console.warn('Dashboard histórico:', e); toast('Não foi possível carregar o histórico completo: '+e.message,'err'); });
 }
 async function carregarDashGeral(){
@@ -4833,8 +4836,9 @@ async function carregarDashGeral(){
 // Pendentes de verdade. A OS pendente é replicada para o dia seguinte até ser resolvida, e às vezes
 // é fechada e aberta de novo com outro número. Por isso o "mesmo atendimento" é reconhecido por:
 //   nº da OS · serial do produto (8+ caracteres; "M000" e afins não servem) · nome do cliente + modelo.
-// Cada atendimento conta uma vez, pela situação mais recente dentro do período; e se ele foi
-// finalizado em qualquer data posterior (mesmo fora do período), a pendência já foi resolvida.
+// Cada atendimento conta uma vez, pela situação mais recente dentro do período (até hoje); se ele foi
+// finalizado em qualquer data posterior, a pendência já foi resolvida. E como ninguém fecha à mão as
+// pendências antigas, só conta a que está marcada para hoje ou uma data à frente (reagendada).
 const _normId = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 function _chavesAtendimento(o){
   const ch = ['OS:'+String(o.os||o.id)];
@@ -4843,12 +4847,25 @@ function _chavesAtendimento(o){
   if(nome.length >= 3 && modelo.length >= 4) ch.push('N:'+nome+'|'+modelo);
   return ch;
 }
+// chave → primeira data de hoje em diante em que o atendimento está marcado no quadro
+function _mapaAgendadas(){
+  const m = {};
+  _osAFrente.concat(Object.values(S.ordens).flat().filter(o => (o.data||'') >= TODAY_STR)).forEach(o => {
+    _chavesAtendimento(o).forEach(k => { if(!m[k] || o.data < m[k]) m[k] = o.data; });
+  });
+  return m;
+}
+function _agendadaPara(o, mapa){
+  return _chavesAtendimento(o).map(k => mapa[k]).filter(Boolean).sort()[0] || '';
+}
 function _pendentesReais(ordens){
   const finalizadaEm = {}; // chave → data mais recente em que foi finalizada (histórico em memória)
   Object.values(S.ordens).flat().forEach(o => {
     if(o.status!=='finalizado') return;
     _chavesAtendimento(o).forEach(k => { if((o.data||'') > (finalizadaEm[k]||'')) finalizadaEm[k] = o.data||''; });
   });
+  const agendada = _mapaAgendadas();
+  ordens = ordens.filter(o => (o.data||'') <= TODAY_STR); // o que está à frente é agendamento, não situação
   // agrupa as OS do período que são o mesmo atendimento (compartilham alguma chave)
   const pai = {}, raiz = k => { while(pai[k] !== k) k = pai[k] = pai[pai[k]]; return k; };
   const grupoDe = o => { const ch = _chavesAtendimento(o); ch.forEach(k => { pai[k] ??= k; }); ch.slice(1).forEach(k => { pai[raiz(k)] = raiz(ch[0]); }); return ch; };
@@ -4859,7 +4876,9 @@ function _pendentesReais(ordens){
     (chavesGrupo[g] ||= new Set()); chaves[i].forEach(k => chavesGrupo[g].add(k));
     if(!ultima[g] || (o.data||'') >= (ultima[g].data||'')) ultima[g] = o;
   });
-  return Object.entries(ultima).filter(([g,o]) => o.status==='pendente' && ![...chavesGrupo[g]].some(k => (finalizadaEm[k]||'') > (o.data||''))).map(([,o]) => o);
+  return Object.entries(ultima).filter(([g,o]) => o.status==='pendente'
+    && ![...chavesGrupo[g]].some(k => (finalizadaEm[k]||'') > (o.data||''))
+    && [...chavesGrupo[g]].some(k => agendada[k])).map(([,o]) => o);
 }
 window.setDashPeriod = setDashPeriod;
 
@@ -4888,10 +4907,12 @@ window.abrirListaDash = function(tipo){
   const base = _dashListas[tipo] || [];
   const hoje = new Date(TODAY_STR+'T12:00:00');
   const ind = tipo==='pend' ? _indiceAtendimentos() : null;
+  const agendadas = tipo==='pend' ? _mapaAgendadas() : null;
   const itens = base.map(o => {
     const tec = S.tecnicos.find(t=>t.id===o.techId);
     const it = { o, tec: tec?.nome || '—', data: o.data||'' };
     if(tipo==='pend'){
+      it.agendada = _agendadaPara(o, agendadas);
       it.desde = _pendenteDesde(o, ind);
       it.dias = Math.max(0, Math.round((hoje - new Date(it.desde+'T12:00:00'))/86400000));
       it.motivo = [o.obs_sel, o.nota].filter(Boolean).join(' · ');
@@ -4901,7 +4922,7 @@ window.abrirListaDash = function(tipo){
   });
   _dl = { tipo, itens, ordem: tipo==='pend' ? {campo:'dias', asc:false} : {campo:'data', asc:false} };
   document.getElementById('dl-titulo').textContent = _DL_TITULOS[tipo] || 'OS';
-  document.getElementById('dl-sub').textContent = getDashLabel() + (tipo==='pend' ? ' · cada atendimento aparece uma vez, na situação mais recente' : '');
+  document.getElementById('dl-sub').textContent = getDashLabel() + (tipo==='pend' ? ' · só as marcadas para hoje ou depois, cada atendimento uma vez' : '');
   document.getElementById('dl-busca').value = '';
   openModal('modal-dash-lista');
   _dlRender();
@@ -4928,7 +4949,7 @@ window._dlRender = function(){
   const stTxt = o => o.status==='finalizado' ? '<span class="pill pill-ok">Finalizada</span>' : o.status==='pendente' ? '<span class="pill pill-err">Pendente</span>' : '<span class="pill pill-info">Em progresso</span>';
   document.getElementById('dl-corpo').innerHTML = lista.length ? `<table class="dl-tbl">
     <thead><tr>${th('os','OS')}${th('cliente','Cliente')}${th('modelo','Modelo')}${th('tec','Técnico')}
-      ${pend ? th('desde','Pendente desde')+th('dias','Dias')+'<th>Motivo</th>' : th('data','Data')+'<th>Status</th>'+(_dl.tipo==='fat'?'<th>Valor</th>':'')}</tr></thead>
+      ${pend ? th('desde','Pendente desde')+th('dias','Dias')+th('agendada','Marcada para')+'<th>Motivo</th>' : th('data','Data')+'<th>Status</th>'+(_dl.tipo==='fat'?'<th>Valor</th>':'')}</tr></thead>
     <tbody>${lista.map(it => { const o = it.o; return `<tr onclick="abrirOSDaDash('${o.id}','${o.data}')" title="Abrir a OS ${esc(o.os)} no quadro de ${fmtShort(o.data)}">
       <td><div class="dl-os">#${esc(o.os)}</div><div style="font-size:10.5px;color:var(--tx3)">${esc(o.tipo)}</div></td>
       <td>${esc(o.nome_cliente)}<div style="font-size:10.5px;color:var(--tx3)">${esc(o.bairro||o.cep)}</div></td>
@@ -4936,6 +4957,7 @@ window._dlRender = function(){
       <td style="white-space:nowrap">${esc(it.tec.split(' ')[0])}</td>
       ${pend ? `<td style="white-space:nowrap">${fmtShort(it.desde)}${it.desde!==o.data ? `<div style="font-size:10.5px;color:var(--tx3)">última: ${fmtShort(o.data)}</div>` : ''}</td>
         <td><span class="dl-dias ${it.dias>=15?'alto':it.dias>=5?'medio':''}">${it.dias}d</span></td>
+        <td style="white-space:nowrap;font-weight:600">${it.agendada ? fmtShort(it.agendada) + (it.agendada===TODAY_STR ? ' · hoje' : '') : '—'}</td>
         <td style="font-size:11.5px;color:var(--tx2);max-width:240px">${esc(it.motivo)}</td>`
       : `<td style="white-space:nowrap">${fmtShort(o.data)}</td><td>${stTxt(o)}</td>${_dl.tipo==='fat' ? `<td style="white-space:nowrap;font-weight:600">${fmtBRL(parseFloat(o.valor))}</td>` : ''}`}
     </tr>`; }).join('')}</tbody></table>`
@@ -5141,7 +5163,12 @@ function renderDashboard(){
   }
 
   // As pendentes dependem do histórico inteiro (finalizada depois?): carrega uma vez, em segundo plano
-  if(!_dashGeralCarregado && !_historicoPromessa) _carregarHistoricoTodo().then(()=>{ if(document.getElementById('screen-dashboard')?.classList.contains('on')) renderDashboard(); });
+  // e recarrega a cada 10 min, para pegar reagendamentos feitos depois (a tentativa marca a hora, então uma falha não vira loop)
+  const histVencido = _dashGeralCarregado && Date.now() - _historicoEm > 10*60*1000;
+  if((!_dashGeralCarregado && !_historicoPromessa) || histVencido){
+    if(histVencido){ _historicoPromessa = null; _historicoEm = Date.now(); }
+    _carregarHistoricoTodo().then(()=>{ if(document.getElementById('screen-dashboard')?.classList.contains('on')) renderDashboard(); });
+  }
   const all=getDashOrdens();
   const label=getDashLabel();
   const fin=all.filter(o=>o.status==='finalizado');
@@ -5214,7 +5241,7 @@ function renderDashboard(){
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 6v4M10 14h.01"/><circle cx="10" cy="10" r="7"/></svg></div>
       <div class="dkc-val">${pend.length}</div>
       <div class="dkc-lbl">Pendentes</div>
-      <div class="dkc-sub">${dashPeriod==='dia' ? 'Requerem atenção' : 'cada OS contada uma vez'}</div>
+      <div class="dkc-sub">marcadas de hoje em diante</div>
     </div>
     <div class="dash-kpi-card gold ${clic('ftc')}"><span class="dkc-ver">ver lista ›</span>
       <div class="dkc-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3l2 4 4.5.7-3.2 3.1.7 4.4L10 13l-4 2.2.7-4.4L3.5 7.7 8 7z"/></svg></div>
