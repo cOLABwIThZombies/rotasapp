@@ -4858,6 +4858,10 @@ function _mapaAgendadas(){
 function _agendadaPara(o, mapa){
   return _chavesAtendimento(o).map(k => mapa[k]).filter(Boolean).sort()[0] || '';
 }
+// Etiquetas (tipo da OS) que já são a solução do atendimento: virou troca, devolução ou coleta
+// para o fabricante → não é mais pendência
+const TIPOS_SOLUCAO = ['Troca Simultânea', 'Devolução', 'COLETA RMA'].map(t => _normId(t));
+const _ehSolucao = o => TIPOS_SOLUCAO.includes(_normId(o.tipo));
 function _pendentesReais(ordens){
   const finalizadaEm = {}; // chave → data mais recente em que foi finalizada (histórico em memória)
   Object.values(S.ordens).flat().forEach(o => {
@@ -4865,6 +4869,8 @@ function _pendentesReais(ordens){
     _chavesAtendimento(o).forEach(k => { if((o.data||'') > (finalizadaEm[k]||'')) finalizadaEm[k] = o.data||''; });
   });
   const agendada = _mapaAgendadas();
+  const comSolucao = new Set(); // chaves de atendimentos que têm OS de troca (passada, de hoje ou marcada à frente)
+  _osAFrente.concat(Object.values(S.ordens).flat()).forEach(o => { if(_ehSolucao(o)) _chavesAtendimento(o).forEach(k => comSolucao.add(k)); });
   ordens = ordens.filter(o => (o.data||'') <= TODAY_STR); // o que está à frente é agendamento, não situação
   // agrupa as OS do período que são o mesmo atendimento (compartilham alguma chave)
   const pai = {}, raiz = k => { while(pai[k] !== k) k = pai[k] = pai[pai[k]]; return k; };
@@ -4878,7 +4884,8 @@ function _pendentesReais(ordens){
   });
   return Object.entries(ultima).filter(([g,o]) => o.status==='pendente'
     && ![...chavesGrupo[g]].some(k => (finalizadaEm[k]||'') > (o.data||''))
-    && [...chavesGrupo[g]].some(k => agendada[k])).map(([,o]) => o);
+    && [...chavesGrupo[g]].some(k => agendada[k])
+    && ![...chavesGrupo[g]].some(k => comSolucao.has(k))).map(([,o]) => o);
 }
 window.setDashPeriod = setDashPeriod;
 
@@ -4887,20 +4894,33 @@ let _dashListas = {};   // preenchido a cada renderDashboard: { total, fin, prog
 let _dl = null;         // lista aberta: { tipo, itens, ordem:{campo, asc} }
 const _DL_TITULOS = { total:'Todas as OS', fin:'OS finalizadas', prog:'OS em progresso', pend:'OS pendentes', ftc:'OS com FTC', fat:'OS faturadas' };
 
-// Desde quando o atendimento está pendente: primeira data em que alguma OS com a mesma chave
-// (nº, serial ou nome+modelo) ficou pendente sem ter sido finalizada antes dela
-// indice: chave → OS do histórico com essa chave (montado uma vez por lista)
+// indice: chave → OS do histórico (e marcadas à frente) com essa chave (montado uma vez por lista)
 function _indiceAtendimentos(){
   const ind = {};
-  Object.values(S.ordens).flat().forEach(x => _chavesAtendimento(x).forEach(k => (ind[k] ||= []).push(x)));
+  Object.values(S.ordens).flat().concat(_osAFrente).forEach(x => _chavesAtendimento(x).forEach(k => (ind[k] ||= []).push(x)));
   return ind;
 }
-function _pendenteDesde(o, ind){
-  const relacionadas = new Set(_chavesAtendimento(o).flatMap(k => ind[k] || []));
-  let desde = o.data||'', fimAntes = '';
-  relacionadas.forEach(x => { if(x.status==='finalizado' && x.data <= (o.data||'') && x.data > fimAntes) fimAntes = x.data; });
-  relacionadas.forEach(x => { if(x.status==='pendente' && x.data > fimAntes && x.data < desde) desde = x.data; });
-  return desde;
+// Data (AAAA-MM-DD, horário de SP) em que a cópia da OS foi criada no quadro
+function _dataCriacao(x){
+  const c = x.createdAt, d = c?.toDate ? c.toDate() : (c?.$ts ? new Date(c.$ts) : null);
+  return d && !isNaN(d) ? d.toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'}) : '';
+}
+// Tempo em que a OS está sendo tratada: conta só a OS atual, desde que foi aberta (primeira criação
+// depois da última vez que aquele número foi finalizado). Se o atendimento mudou de número
+// (fechada e aberta de novo), vale a última OS aberta. → { num, aberta, atual (cópia para abrir) }
+function _emTratamento(o, ind){
+  const porNum = {};
+  new Set(_chavesAtendimento(o).flatMap(k => ind[k] || [])).forEach(x => (porNum[String(x.os||x.id)] ||= []).push(x));
+  let melhor = null;
+  Object.entries(porNum).forEach(([num, l]) => {
+    const fim = l.filter(x => x.status==='finalizado' && x.data <= TODAY_STR).map(x => x.data).sort().pop() || '';
+    const ativas = l.filter(x => x.data > fim).sort((a,b) => a.data.localeCompare(b.data));
+    if(!ativas.length) return;
+    const aberta = ativas.map(x => { const c = _dataCriacao(x); return c && c < x.data ? c : x.data; }).sort()[0];
+    const atual = ativas.filter(x => x.data <= TODAY_STR).pop() || ativas[0];
+    if(!melhor || aberta > melhor.aberta) melhor = { num, aberta, atual };
+  });
+  return melhor || { num:String(o.os||o.id), aberta:o.data||'', atual:o };
 }
 
 window.abrirListaDash = function(tipo){
@@ -4913,11 +4933,12 @@ window.abrirListaDash = function(tipo){
     const it = { o, tec: tec?.nome || '—', data: o.data||'' };
     if(tipo==='pend'){
       it.agendada = _agendadaPara(o, agendadas);
-      it.desde = _pendenteDesde(o, ind);
+      const t = _emTratamento(o, ind);
+      it.desde = t.aberta; it.osAtual = t.num; it.abrir = t.atual;
       it.dias = Math.max(0, Math.round((hoje - new Date(it.desde+'T12:00:00'))/86400000));
       it.motivo = [o.obs_sel, o.nota].filter(Boolean).join(' · ');
     }
-    it.busca = _normId([o.os, o.nome_cliente, o.modelo, o.serial, it.tec, o.tipo, o.bairro, o.defeito, it.motivo].join(' '));
+    it.busca = _normId([o.os, it.osAtual||'', o.nome_cliente, o.modelo, o.serial, it.tec, o.tipo, o.bairro, o.defeito, it.motivo].join(' '));
     return it;
   });
   _dl = { tipo, itens, ordem: tipo==='pend' ? {campo:'dias', asc:false} : {campo:'data', asc:false} };
@@ -4949,13 +4970,13 @@ window._dlRender = function(){
   const stTxt = o => o.status==='finalizado' ? '<span class="pill pill-ok">Finalizada</span>' : o.status==='pendente' ? '<span class="pill pill-err">Pendente</span>' : '<span class="pill pill-info">Em progresso</span>';
   document.getElementById('dl-corpo').innerHTML = lista.length ? `<table class="dl-tbl">
     <thead><tr>${th('os','OS')}${th('cliente','Cliente')}${th('modelo','Modelo')}${th('tec','Técnico')}
-      ${pend ? th('desde','Pendente desde')+th('dias','Dias')+th('agendada','Marcada para')+'<th>Motivo</th>' : th('data','Data')+'<th>Status</th>'+(_dl.tipo==='fat'?'<th>Valor</th>':'')}</tr></thead>
-    <tbody>${lista.map(it => { const o = it.o; return `<tr onclick="abrirOSDaDash('${o.id}','${o.data}')" title="Abrir a OS ${esc(o.os)} no quadro de ${fmtShort(o.data)}">
-      <td><div class="dl-os">#${esc(o.os)}</div><div style="font-size:10.5px;color:var(--tx3)">${esc(o.tipo)}</div></td>
+      ${pend ? th('desde','Em tratamento desde')+th('dias','Dias')+th('agendada','Marcada para')+'<th>Motivo</th>' : th('data','Data')+'<th>Status</th>'+(_dl.tipo==='fat'?'<th>Valor</th>':'')}</tr></thead>
+    <tbody>${lista.map(it => { const o = it.o, ab = it.abrir || o, num = it.osAtual || o.os; return `<tr onclick="abrirOSDaDash('${ab.id}','${ab.data}')" title="Abrir a OS ${esc(num)} no quadro de ${fmtShort(ab.data)}">
+      <td><div class="dl-os">#${esc(num)}</div><div style="font-size:10.5px;color:var(--tx3)">${esc(ab.tipo)}</div>${String(num)!==String(o.os) ? `<div style="font-size:10.5px;color:var(--warn-tx)">reaberta · antes OS ${esc(o.os)}</div>` : ''}</td>
       <td>${esc(o.nome_cliente)}<div style="font-size:10.5px;color:var(--tx3)">${esc(o.bairro||o.cep)}</div></td>
       <td>${esc(o.modelo)}<div style="font-size:10.5px;color:var(--tx3);font-family:'DM Mono',monospace">${esc(o.serial)}</div></td>
       <td style="white-space:nowrap">${esc(it.tec.split(' ')[0])}</td>
-      ${pend ? `<td style="white-space:nowrap">${fmtShort(it.desde)}${it.desde!==o.data ? `<div style="font-size:10.5px;color:var(--tx3)">última: ${fmtShort(o.data)}</div>` : ''}</td>
+      ${pend ? `<td style="white-space:nowrap">${fmtShort(it.desde)}<div style="font-size:10.5px;color:var(--tx3)">última pendência: ${fmtShort(o.data)}</div></td>
         <td><span class="dl-dias ${it.dias>=15?'alto':it.dias>=5?'medio':''}">${it.dias}d</span></td>
         <td style="white-space:nowrap;font-weight:600">${it.agendada ? fmtShort(it.agendada) + (it.agendada===TODAY_STR ? ' · hoje' : '') : '—'}</td>
         <td style="font-size:11.5px;color:var(--tx2);max-width:240px">${esc(it.motivo)}</td>`
