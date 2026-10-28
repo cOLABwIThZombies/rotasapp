@@ -4862,6 +4862,18 @@ function _agendadaPara(o, mapa){
 // para o fabricante → não é mais pendência
 const TIPOS_SOLUCAO = ['Troca Simultânea', 'Devolução', 'COLETA RMA'].map(t => _normId(t));
 const _ehSolucao = o => TIPOS_SOLUCAO.includes(_normId(o.tipo));
+// Fluxo normal, não pendência (combinado com a equipe): "Retornar com peça" (o técnico pede mais
+// peças — acontece muito) e "Coleta de orç. aprovado" (higienização completa / troca de cesto feita
+// na loja). Olha só a OS atual: as cópias daquele número depois da última vez que foi finalizado.
+const _motivoTxt = x => _normId([x.obs_sel, x.nota].join(' '));
+function _ehFluxoNormal(o, porNum){
+  const doNum = porNum[String(o.os||o.id)] || [o];
+  const fim = doNum.filter(x => x.status==='finalizado' && x.data <= TODAY_STR).map(x => x.data).sort().pop() || '';
+  const atuais = doNum.filter(x => x.data > fim);
+  if(atuais.some(x => x.status==='pendente' && /RETORN(AR|O)COMPECA|PECASOLICITADA/.test(_motivoTxt(x)))) return true;
+  return atuais.some(x => _normId(x.tipo)===_normId('Orç. Aprovado'))
+    && atuais.some(x => /COLETAD/.test(_motivoTxt(x)) || _normId(x.tipo)===_normId('Reparo em Oficina'));
+}
 function _pendentesReais(ordens){
   const finalizadaEm = {}; // chave → data mais recente em que foi finalizada (histórico em memória)
   Object.values(S.ordens).flat().forEach(o => {
@@ -4870,7 +4882,11 @@ function _pendentesReais(ordens){
   });
   const agendada = _mapaAgendadas();
   const comSolucao = new Set(); // chaves de atendimentos que têm OS de troca (passada, de hoje ou marcada à frente)
-  _osAFrente.concat(Object.values(S.ordens).flat()).forEach(o => { if(_ehSolucao(o)) _chavesAtendimento(o).forEach(k => comSolucao.add(k)); });
+  const porNum = {}; // nº da OS → todas as cópias (passadas e marcadas à frente)
+  _osAFrente.concat(Object.values(S.ordens).flat()).forEach(o => {
+    if(_ehSolucao(o)) _chavesAtendimento(o).forEach(k => comSolucao.add(k));
+    (porNum[String(o.os||o.id)] ||= []).push(o);
+  });
   ordens = ordens.filter(o => (o.data||'') <= TODAY_STR); // o que está à frente é agendamento, não situação
   // agrupa as OS do período que são o mesmo atendimento (compartilham alguma chave)
   const pai = {}, raiz = k => { while(pai[k] !== k) k = pai[k] = pai[pai[k]]; return k; };
@@ -4885,7 +4901,8 @@ function _pendentesReais(ordens){
   return Object.entries(ultima).filter(([g,o]) => o.status==='pendente'
     && ![...chavesGrupo[g]].some(k => (finalizadaEm[k]||'') > (o.data||''))
     && [...chavesGrupo[g]].some(k => agendada[k])
-    && ![...chavesGrupo[g]].some(k => comSolucao.has(k))).map(([,o]) => o);
+    && ![...chavesGrupo[g]].some(k => comSolucao.has(k))
+    && !_ehFluxoNormal(o, porNum)).map(([,o]) => o);
 }
 window.setDashPeriod = setDashPeriod;
 
